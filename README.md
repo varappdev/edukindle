@@ -41,6 +41,7 @@ hand-written question bank is loaded on first run.
 | `EDUKINDLE_PORT` / `EDUKINDLE_HOST` | `8080` / `0.0.0.0` | |
 | `EDUKINDLE_DATA` | `./data` | Documents, learner state, cache (JSON files) |
 | `EDUKINDLE_OFFLINE` | unset | `1` forces the offline agents |
+| `EDUKINDLE_AI_LAYOUT` | `1` | `0` turns off AI typesetting of PDF sections |
 
 ### 2. Kindle app
 
@@ -120,11 +121,22 @@ Markdown subset with LaTeX maths: paragraphs, `-`/`1.` lists, `**bold**`,
 `*italic*`, `` `code` ``, fenced code blocks, `> notes`, `$inline$` and
 `$$display$$` maths. The server (`richtext.py`) turns it into blocks for the
 Kindle:
-- inline maths becomes Pango markup: Unicode symbols, real super/subscripts and
-  italic variables, all in glyphs the Kindle's Bookerly font has;
+- simple inline maths becomes Pango markup: Unicode symbols, real
+  super/subscripts and italic variables, all in glyphs the Kindle's Bookerly
+  font has. Fractions, sums, limits and roots are typeset as small images that
+  sit on the text baseline (Pango shape attributes);
 - display maths is rendered by matplotlib (`mathrender.py`) to a PNG at the
   Kindle's text size, and equations too wide for the page break at `=`;
 - code keeps its whitespace in the Kindle's monospace font.
+
+**PDFs.** Text extracted from a PDF loses its layout: lines break
+mid-sentence, bullets run into paragraphs, and formulas are flattened. When an
+AI provider is configured, the typesetter (`agents/typesetter.py`) rewrites
+each PDF section as Markdown + LaTeX the first time it's opened, and prepares
+the next two in the background. Any result that drops or adds content is
+rejected, and the original is kept. Without AI, glued bullets (`•Like this`)
+are still split into lists and Unicode maths letters (𝑛, 𝑇) are shown as
+italics, since no Kindle font has them.
 
 The Kindle paginates the blocks like a book. Lists get hanging indents, and
 headings and formula lead-ins stay with what follows them. Results and progress

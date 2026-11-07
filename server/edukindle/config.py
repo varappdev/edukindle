@@ -27,6 +27,7 @@ class Config:
     reasoning_effort: str | None
     llm_timeout: float
     offline: bool
+    ai_layout: bool = True  # let the AI restore the layout of PDF sections
 
     @property
     def llm_enabled(self) -> bool:
@@ -65,4 +66,5 @@ def load() -> Config:
         reasoning_effort=effort or None,
         llm_timeout=float(env("EDUKINDLE_LLM_TIMEOUT", "45")),
         offline=env("EDUKINDLE_OFFLINE", "") not in ("", "0", "false"),
+        ai_layout=env("EDUKINDLE_AI_LAYOUT", "1") not in ("0", "false", "no"),
     )

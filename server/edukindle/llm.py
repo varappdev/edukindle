@@ -59,6 +59,7 @@ class LLM:
         name: str,
         schema: dict[str, Any],
         max_tokens: int = 4000,
+        timeout: float | None = None,
     ) -> dict[str, Any]:
         if not self._client:
             raise LLMError("LLM disabled (no API key)")
@@ -73,6 +74,8 @@ class LLM:
                     ],
                     "max_completion_tokens": max_tokens,
                 }
+                if timeout:
+                    kwargs["timeout"] = timeout  # per call: some jobs are long
                 if self._use_effort:
                     if self._openrouter:
                         # OpenRouter's unified form, translated per upstream model.

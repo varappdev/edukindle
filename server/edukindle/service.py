@@ -22,8 +22,10 @@ from typing import Any, Awaitable, Callable
 from . import ingest, knowledge, mathrender, richtext, views
 from .agents.curriculum import CurriculumArchitect, apply_concepts
 from .agents.educator import SocraticEducator
+from .agents.typesetter import VERSION as LAYOUT_VERSION
+from .agents.typesetter import Typesetter
 from .config import Config
-from .llm import LLM
+from .llm import LLM, LLMError
 from .store import Store, now
 
 log = logging.getLogger("edukindle.service")
@@ -31,6 +33,10 @@ log = logging.getLogger("edukindle.service")
 EXPLAIN_MODES = ("summary", "simple", "paragraph", "concept")
 # Bump when explanation formatting changes so cached explanations regenerate.
 CACHE_VERSION = 2
+# How long opening a PDF section waits for the AI to restore its layout; after
+# that the extracted text is shown and the tidy version is ready next time.
+LAYOUT_WAIT_S = 30
+LAYOUT_AHEAD = 2  # sections typeset in the background ahead of the reader
 
 
 class NotFound(LookupError):
@@ -56,6 +62,7 @@ class EduKindle:
         self.store = Store(cfg.data_dir)
         self.educator = SocraticEducator(self.llm)
         self.architect = CurriculumArchitect(self.llm)
+        self.typesetter = Typesetter(self.llm)
         self._jobs: dict[str, asyncio.Task] = {}
         self._pool: dict[str, dict[str, Any]] = {}  # section id -> prefetched quiz
 
@@ -203,6 +210,8 @@ class EduKindle:
             raise BadRequest(f"couldn't read {filename}: {e}") from e
         self.store.save_document(doc)
         self._spawn(f"map:{doc['id']}", lambda: self._map(doc))
+        for s in doc["sections"][:LAYOUT_AHEAD]:
+            self._typeset_soon(doc, s)
         return {"id": doc["id"], "title": doc["title"], "sections": len(doc["sections"])}
 
     def delete_document(self, doc_id: str) -> None:
@@ -213,11 +222,47 @@ class EduKindle:
         self._pool.clear()
         self.store.reset_student()
 
+    # -- PDF layout -------------------------------------------------------------------
+
+    def _needs_layout(self, doc: dict[str, Any], s: dict[str, Any]) -> bool:
+        return (self.llm.enabled and self.cfg.ai_layout and doc.get("source") == "pdf"
+                and s.get("layout", {}).get("v", 0) < LAYOUT_VERSION)
+
+    async def _typeset(self, doc: dict[str, Any], s: dict[str, Any]) -> None:
+        try:
+            markdown = await self.typesetter.typeset(doc, s)
+        except LLMError as e:
+            log.warning("couldn't typeset %s (will retry later): %s", s["id"], e)
+            return
+        s.setdefault("raw", s["text"])
+        if markdown:
+            s["text"] = markdown
+        s["layout"] = {"by": "ai" if markdown else "rejected", "v": LAYOUT_VERSION, "ts": now()}
+        self.store.save_document(doc)
+        self._pool.pop(s["id"], None)  # a prefetched quiz saw the old text
+
+    def _typeset_soon(self, doc: dict[str, Any], s: dict[str, Any]) -> asyncio.Task | None:
+        if not self._needs_layout(doc, s):
+            return None
+        return self._spawn(f"layout:{s['id']}", lambda: self._typeset(doc, s))
+
     # -- reading -----------------------------------------------------------------
 
-    def open_section(self, section_id: str, px: int | None = None,
-                     width: int | None = None) -> dict[str, Any]:
+    async def open_section(self, section_id: str, px: int | None = None,
+                           width: int | None = None) -> dict[str, Any]:
         doc, s = self._section(section_id)
+        layout_pending = False
+        job = self._typeset_soon(doc, s)
+        if job:
+            try:
+                await asyncio.wait_for(asyncio.shield(job), LAYOUT_WAIT_S)
+            except asyncio.TimeoutError:
+                layout_pending = True
+            except Exception:
+                log.exception("typesetting %s failed", section_id)
+        for ahead in doc["sections"][s["index"] + 1:s["index"] + 1 + LAYOUT_AHEAD]:
+            self._typeset_soon(doc, ahead)
+
         st = self.store.student
         rec = st["sections"].setdefault(section_id, {"passed": False, "best": None,
                                                      "attempts": 0})
@@ -240,6 +285,7 @@ class EduKindle:
             "title": s["title"],
             "text": s["text"],
             "doc": richtext.doc(s["text"], px, width),
+            "layout_pending": layout_pending,
             "status": self._section_status(section_id),
             "prev": {"id": prev["id"], "title": prev["title"]} if prev else None,
             "next": {"id": nxt["id"], "title": nxt["title"]} if nxt else None,
@@ -271,7 +317,7 @@ class EduKindle:
 
         key = "explain:" + hashlib.sha1(
             f"{section_id}|{mode}|{paragraph}|{concept_id}|{status}|{self.llm.enabled}|"
-            f"{doc.get('version', 1)}|{CACHE_VERSION}"
+            f"{doc.get('version', 1)}|{CACHE_VERSION}|{hashlib.sha1(s['text'].encode()).hexdigest()}"
             .encode()).hexdigest()[:16]
         cached = self.store.cache_get(key)
         if not cached:

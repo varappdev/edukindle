@@ -566,6 +566,11 @@ int ui_rows_fitting(double reserved_px, double row_px)
 typedef enum { BLK_PARA, BLK_HEADING, BLK_ITEM, BLK_NOTE, BLK_CODE, BLK_MATH, BLK_RULE } BlockKind;
 
 typedef struct {
+    cairo_surface_t *image; /* black ink as alpha */
+    int w, h, depth;        /* server pixels; depth is below the baseline */
+} InlineImage;
+
+typedef struct {
     BlockKind kind;
     int level;      /* heading level 1-3, list nesting */
     char *markup;   /* text blocks, and the fallback for maths without an image */
@@ -573,6 +578,7 @@ typedef struct {
     char *marker;   /* list marker: "•", "1." */
     int para;       /* source paragraph index, -1 if none */
     cairo_surface_t *image; /* display maths, black ink as alpha */
+    GArray *inline_images;  /* InlineImage, one per U+FFFC in the markup */
     /* Layout results, in document pixels. */
     PangoLayout *layout;
     PangoLayout *mark_layout;
@@ -617,6 +623,11 @@ static void block_clear(Block *b)
     g_free(b->marker);
     if (b->image)
         cairo_surface_destroy(b->image);
+    if (b->inline_images) {
+        for (guint i = 0; i < b->inline_images->len; i++)
+            cairo_surface_destroy(g_array_index(b->inline_images, InlineImage, i).image);
+        g_array_free(b->inline_images, TRUE);
+    }
     if (b->layout)
         g_object_unref(b->layout);
     if (b->mark_layout)
@@ -660,6 +671,62 @@ static int em(Pager *p, double f)
     return ui_px(p->px * f);
 }
 
+/* The server renders maths at the reader's text size; scale for this pager's. */
+static double image_scale(Pager *p)
+{
+    return p->image_px > 0 ? (double)ui_px(p->px) / p->image_px : 1.0;
+}
+
+/* Pango calls this for each inline image with the current point on the
+ * baseline at the image's left edge. */
+static void draw_inline_image(cairo_t *cr, PangoAttrShape *attr, gboolean do_path,
+                              gpointer data)
+{
+    (void)data;
+    cairo_surface_t *img = attr->data;
+    if (do_path || !img)
+        return;
+    double x, y;
+    cairo_get_current_point(cr, &x, &y);
+    double w = (double)attr->logical_rect.width / PANGO_SCALE;
+    double h = (double)attr->logical_rect.height / PANGO_SCALE;
+    cairo_save(cr);
+    cairo_translate(cr, x, y + (double)attr->logical_rect.y / PANGO_SCALE);
+    cairo_scale(cr, w / cairo_image_surface_get_width(img),
+                h / cairo_image_surface_get_height(img));
+    cairo_mask_surface(cr, img, 0, 0);
+    cairo_restore(cr);
+}
+
+/* Reserves room for each inline image where the server put U+FFFC. */
+static void attach_inline_images(Pager *p, Block *b, PangoLayout *l)
+{
+    if (!b->inline_images || !b->inline_images->len)
+        return;
+    pango_cairo_context_set_shape_renderer(pango_layout_get_context(l), draw_inline_image,
+                                           NULL, NULL);
+    PangoAttrList *attrs = pango_layout_get_attributes(l);
+    attrs = attrs ? pango_attr_list_copy(attrs) : pango_attr_list_new();
+    double s = image_scale(p);
+    const char *text = pango_layout_get_text(l);
+    guint n = 0;
+    for (const char *c = text; *c && n < b->inline_images->len; c = g_utf8_next_char(c)) {
+        if (g_utf8_get_char(c) != 0xFFFC)
+            continue;
+        InlineImage *im = &g_array_index(b->inline_images, InlineImage, n++);
+        PangoRectangle r = {0, (int)(-(im->h - im->depth) * s * PANGO_SCALE),
+                            (int)(im->w * s * PANGO_SCALE), (int)(im->h * s * PANGO_SCALE)};
+        PangoAttribute *a = pango_attr_shape_new_with_data(
+            &r, &r, cairo_surface_reference(im->image),
+            (PangoAttrDataCopyFunc)cairo_surface_reference, (GDestroyNotify)cairo_surface_destroy);
+        a->start_index = c - text;
+        a->end_index = g_utf8_next_char(c) - text;
+        pango_attr_list_insert(attrs, a);
+    }
+    pango_layout_set_attributes(l, attrs);
+    pango_attr_list_unref(attrs);
+}
+
 static PangoLayout *text_layout(Pager *p, Block *b, int width)
 {
     PangoLayout *l = gtk_widget_create_pango_layout(p->area, NULL);
@@ -688,6 +755,7 @@ static PangoLayout *text_layout(Pager *p, Block *b, int width)
         if (b->kind == BLK_MATH)
             pango_layout_set_alignment(l, PANGO_ALIGN_CENTER);
         pango_layout_set_markup(l, b->markup ? b->markup : "", -1);
+        attach_inline_images(p, b, l);
     }
     return l;
 }
@@ -793,9 +861,8 @@ static void pager_relayout(Pager *p)
             if (b->image) {
                 int iw = cairo_image_surface_get_width(b->image);
                 int ih = cairo_image_surface_get_height(b->image);
-                /* The server renders at the reader's text size; scale for this
-                 * pager's text size, and never wider than the page. */
-                b->scale = p->image_px > 0 ? (double)ui_px(p->px) / p->image_px : 1.0;
+                /* Matched to this pager's text size, never wider than the page. */
+                b->scale = image_scale(p);
                 if (iw * b->scale > w)
                     b->scale = (double)w / iw;
                 b->tx = (w - iw * b->scale) / 2;
@@ -1105,6 +1172,17 @@ void pager_set_doc(Pager *p, Json *doc)
         }
         if (b.kind != BLK_CODE && b.kind != BLK_RULE)
             b.markup = g_strdup(json_str(jb, "m", ""));
+        Json *imgs = json_get(jb, "img"); /* inline maths, in markup order */
+        if (json_len(imgs)) {
+            b.inline_images = g_array_new(FALSE, FALSE, sizeof(InlineImage));
+            json_each(ji, imgs) {
+                InlineImage im = {png_from_base64(json_str(ji, "png", "")), json_int(ji, "w", 0),
+                                  json_int(ji, "h", 0), json_int(ji, "d", 0)};
+                if (!im.image) /* keep the order aligned with the U+FFFCs */
+                    im.image = cairo_image_surface_create(CAIRO_FORMAT_A8, 1, 1);
+                g_array_append_val(b.inline_images, im);
+            }
+        }
         g_array_append_val(p->blocks, b);
     }
     pager_reset(p);

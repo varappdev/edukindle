@@ -37,55 +37,61 @@ def _matplotlib():
 
         matplotlib.use("Agg")
         matplotlib.rcParams["mathtext.fontset"] = FONTSET
-        from matplotlib import mathtext
         from matplotlib.font_manager import FontProperties
+        from matplotlib.mathtext import MathTextParser
 
-        _mpl = (mathtext, FontProperties)
+        _mpl = (MathTextParser("agg"), FontProperties)
     return _mpl
 
 
-def _prepare(tex: str) -> str:
+def _prepare(tex: str, display: bool) -> str:
     tex = tex.strip()
     tex = re.sub(r"\\(displaystyle|textstyle|limits|nolimits)\b", "", tex)
-    # Display maths: full-size fractions, like LaTeX's display style.
-    tex = re.sub(r"\\frac(?![a-zA-Z])", r"\\dfrac", tex)
+    if display:  # full-size fractions, like LaTeX's display style
+        tex = re.sub(r"\\frac(?![a-zA-Z])", r"\\dfrac", tex)
+    else:  # in running text, limits go beside the operator, not above and below
+        tex = re.sub(r"\\(sum|prod|coprod|lim|bigcup|bigcap|bigoplus)(?![a-zA-Z])(?=\s*[_^])",
+                     r"{\\\1}", tex)
     tex = re.sub(r"\\(left|right)\s*\\?\.", "", tex)  # invisible delimiters
     tex = tex.replace("\\operatorname*", "\\operatorname")
     return tex
 
 
-@functools.lru_cache(maxsize=1024)
-def render(tex: str, px: int) -> tuple[str, int, int] | None:
-    """Returns (base64 PNG, width, height) or None if mathtext can't parse it."""
+@functools.lru_cache(maxsize=2048)
+def render(tex: str, px: int, display: bool = True) -> tuple[str, int, int, int] | None:
+    """Returns (base64 PNG, width, height, depth) or None if mathtext can't
+    parse it. depth is how far the image extends below the text baseline,
+    which is what lets inline maths sit on the line."""
     px = max(MIN_PX, min(MAX_PX, round(int(px) * SIZE_FACTOR)))
-    source = _prepare(tex)
+    source = _prepare(tex, display)
     if not source or "\\begin" in source:
         return None
     try:
         with _lock:
-            mathtext, FontProperties = _matplotlib()
-            buf = io.BytesIO()
+            parser, FontProperties = _matplotlib()
             # At 72 dpi a font size of N points is N pixels.
-            mathtext.math_to_image(f"${source}$", buf, prop=FontProperties(size=px), dpi=72,
-                                   format="png")
+            out = parser.parse(f"${source}$", dpi=72, prop=FontProperties(size=px))
     except Exception as e:  # mathtext raises ValueError and friends on bad input
         log.info("can't render %r as an image (%s); using text", tex, str(e).splitlines()[0])
         return None
 
+    import numpy as np
     from PIL import Image
 
-    grey = Image.open(io.BytesIO(buf.getvalue())).convert("L")
-    bbox = grey.point(lambda v: 255 - v).getbbox()  # trim the white margin
-    if not bbox:
+    ink = np.asarray(out.image, dtype=np.uint8)  # 255 = ink
+    if not ink.any():
         return None
-    pad = max(1, px // 12)
-    grey = grey.crop((max(bbox[0] - pad, 0), max(bbox[1] - pad, 0),
-                      min(bbox[2] + pad, grey.width), min(bbox[3] + pad, grey.height)))
-    ink = Image.new("LA", grey.size, 0)
-    ink.putalpha(grey.point(lambda v: 255 - v))
-    out = io.BytesIO()
-    ink.save(out, "PNG", optimize=True)
-    return base64.b64encode(out.getvalue()).decode("ascii"), ink.width, ink.height
+    depth = int(round(out.depth))
+    if display:  # a little air around display formulas; inline ones sit on the line
+        pad = max(1, px // 16)
+        ink = np.pad(ink, pad)
+        depth += pad
+    height, width = ink.shape
+    image = Image.new("LA", (width, height), 0)
+    image.putalpha(Image.fromarray(ink, mode="L"))
+    buf = io.BytesIO()
+    image.save(buf, "PNG", optimize=True)
+    return base64.b64encode(buf.getvalue()).decode("ascii"), width, height, depth
 
 
 def warm_up() -> None:

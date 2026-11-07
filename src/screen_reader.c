@@ -22,15 +22,32 @@ typedef struct {
     GtkWidget *hint;
     GtkWidget *explain_btn;
     GtkWidget *body; /* holds the message while loading, then the pager */
+    GtkWidget *loading;
     Pager *pager;
     gboolean selecting;
+    gboolean layout_pending; /* the AI is still tidying this PDF section */
+    guint slow_timer;
 } Reader;
 
 static void reader_free(gpointer data)
 {
     Reader *r = data;
+    if (r->slow_timer)
+        g_source_remove(r->slow_timer);
     g_free(r->section_id);
     g_free(r);
+}
+
+/* PDF sections are typeset by the AI the first time they're opened. */
+static gboolean reader_slow(gpointer data)
+{
+    Reader *r = data;
+    r->slow_timer = 0;
+    if (r->loading)
+        ui_label_set(r->loading, "<b>Formatting this section for your Kindle\342\200\246</b>\n\n"
+                                 "The first time a PDF section is opened, the AI restores its "
+                                 "lists, maths and code. This takes a few seconds.");
+    return FALSE;
 }
 
 static void reader_update_hint(Reader *r)
@@ -44,6 +61,9 @@ static void reader_update_hint(Reader *r)
 
     if (r->selecting)
         ui_label_set(r->hint, "<b>Tap the paragraph you want explained.</b>");
+    else if (r->layout_pending && page == 0)
+        ui_label_set(r->hint, "This section is still being formatted. Reopen it in a minute for "
+                              "the tidied version.");
     else if (page == pages - 1)
         ui_label_set(r->hint, "End of section. Tap <b>Check</b> to test your understanding.");
     else if (page == 0)
@@ -111,6 +131,11 @@ static void reader_quiz(GtkWidget *b, gpointer data)
 static void reader_loaded(NetResponse *resp, gpointer data)
 {
     Reader *r = data;
+    if (r->slow_timer) {
+        g_source_remove(r->slow_timer);
+        r->slow_timer = 0;
+    }
+    r->loading = NULL;
     ui_clear(r->body);
     if (resp->error) {
         char *m = g_markup_printf_escaped("<b>Couldn't open this section.</b>\n\n%s",
@@ -121,6 +146,7 @@ static void reader_loaded(NetResponse *resp, gpointer data)
         return;
     }
     Json *j = resp->json;
+    r->layout_pending = json_bool(j, "layout_pending", FALSE);
     ui_label_printf(r->title, "%s", json_str(j, "title", ""));
     const char *chapter = json_str(j, "chapter", "");
     ui_label_printf(r->meta, "%s%sSection %d of %d", chapter, chapter[0] ? " \302\267 " : "",
@@ -160,8 +186,10 @@ GtkWidget *screen_reader_new(const char *section_id)
     gtk_box_pack_start(GTK_BOX(r->screen), r->meta, FALSE, FALSE, 0);
 
     r->body = gtk_vbox_new(FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(r->body), ui_message("Opening section\342\200\246"), TRUE, TRUE, 0);
+    r->loading = ui_message("Opening section\342\200\246");
+    gtk_box_pack_start(GTK_BOX(r->body), r->loading, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(r->screen), r->body, TRUE, TRUE, 0);
+    r->slow_timer = g_timeout_add(1500, reader_slow, r);
 
     r->hint = ui_label_wrapped("", UI_FONT_UI, UI_SMALL_PX, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(r->screen), r->hint, FALSE, FALSE, 0);

@@ -34,7 +34,10 @@ def slugify(text: str, max_len: int = 40) -> str:
 
 
 _MD_HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
-_PDF_BULLET = re.compile(r"^[\u2022\u25cf\u25aa\u25e6\u2023\u2013*-]\s+(.*)$")
+# Glyph bullets are often glued to the text ("•Understand"); dashes need a space.
+_PDF_BULLET = re.compile(rf"^(?:[{richtext.BULLET_GLYPHS}\u25e6]\s*|[\u2013*-]\s+)(.*)$")
+# Several bullets extracted onto one line: split before each glyph.
+_PDF_MIDLINE_BULLET = re.compile(rf"(?<=\S)\s+(?=[{richtext.BULLET_GLYPHS}])")
 
 
 def normalise_paragraphs(paragraphs: Iterable[str]) -> list[str]:
@@ -158,14 +161,17 @@ def _pdf_paragraphs(page_text: str) -> list[tuple[bool, str]]:
 
     out: list[tuple[bool, str]] = []
     buf: list[str] = []
+    last = ""  # the previous line, to tell a wrapped list item from one that ended
 
     def flush():
         if buf:
             out.append((False, " ".join(buf)))
             buf.clear()
 
+    segments = []
     for line in lines:
-        s = line.strip()
+        segments.extend(_PDF_MIDLINE_BULLET.split(line.strip()) if line.strip() else [""])
+    for s in segments:
         if not s:
             flush()
             continue
@@ -174,7 +180,11 @@ def _pdf_paragraphs(page_text: str) -> list[tuple[bool, str]]:
         if bullet := _PDF_BULLET.match(s):
             flush()
             buf.append("- " + bullet.group(1))  # becomes a Markdown list item
+            last = s
             continue
+        if buf and buf[0].startswith("- ") and s[:1].isupper() and len(last) < 0.75 * full:
+            flush()  # a short item line, then a capital: the list item has ended
+        last = s
         if len(s) < 80 and _HEADING_RE.match(s) and not s.endswith((".", ",")):
             flush()
             out.append((True, s))

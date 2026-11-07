@@ -125,9 +125,9 @@ def test_blocks():
 
 
 def test_display_maths_png():
-    b64, w, h = mathrender.render(r"\frac{a}{b}", 42)
+    b64, w, h, depth = mathrender.render(r"\frac{a}{b}", 42)
     png = base64.b64decode(b64)
-    assert png[:8] == b"\x89PNG\r\n\x1a\n" and w > 0 and h > 40
+    assert png[:8] == b"\x89PNG\r\n\x1a\n" and w > 0 and h > 40 and 0 < depth < h
     assert mathrender.render(r"\begin{cases} a \end{cases}", 42) is None
     assert mathrender.render(r"\frac{", 42) is None  # unparseable -> caller uses text
     [blk] = to_blocks(r"$$\begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}$$", px=42)
@@ -237,3 +237,62 @@ def test_sample_upgrade_keeps_ids_and_progress(tmp_path):
         assert [s["id"] for s in doc["sections"]] == [f"{SAMPLE}.{i}" for i in range(1, 8)]
         assert c.get(f"/api/documents/{SAMPLE}").json()["sections"][0]["status"] == "passed"
         assert len(svc.store.documents) == 1  # upgraded in place, not duplicated
+
+
+# --- PDF clean-up at render time ---------------------------------------------------
+
+
+@pytest.mark.parametrize("line, out", [
+    ("•Understand pseudocode •Understand iteration",
+     "- Understand pseudocode\n- Understand iteration"),
+    ("Aims: •One •Two", "Aims:\n- One\n- Two"),
+    ("•Introduction to Algorithms", "- Introduction to Algorithms"),
+    ("a lone • mid-sentence stays", "a lone • mid-sentence stays"),
+    ("h◦ (g◦f) =ext (h◦g)◦f", "h◦ (g◦f) =ext (h◦g)◦f"),  # ◦ is composition, not a bullet
+    ("- already an item", "- already an item"),
+])
+def test_unglue_bullets(line, out):
+    assert richtext.unglue_bullets(line) == out
+
+
+def test_glued_bullets_render_as_list_items():
+    blocks = to_blocks("Objectives •Understand pseudocode •Establish closed forms")
+    assert [(b["t"], b["m"]) for b in blocks] == [
+        ("p", "Objectives"), ("li", "Understand pseudocode"), ("li", "Establish closed forms")]
+
+
+def test_unicode_maths_letters_become_italics():
+    # 𝑇(𝑛) uses plane-1 letters that no Kindle font has.
+    assert inline("𝑇(𝑛) = 𝑛 + 𝑇(𝑛 − 1)") == "<i>T</i>(<i>n</i>) = <i>n</i> + <i>T</i>(<i>n</i> − 1)"
+    assert inline("𝐀𝐁 and ℎ") == "<b>A</b><b>B</b> and <i>h</i>"
+    assert inline("x︂ ⎪y⎪") == "x y"  # PDF debris removed
+
+
+def test_complex_inline_maths_becomes_an_image():
+    images: list = []
+    markup = inline(r"so $\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$ and $x^2$", images, 42)
+    assert markup == f"so {richtext.OBJECT} and <i>x</i><sup>2</sup>"
+    [img] = images
+    assert img["w"] > img["h"] > img["d"] > 0
+    assert img["h"] < 100  # limits sit beside the sum in running text
+    # Without a list to fill (quiz labels), the same maths stays text.
+    assert richtext.OBJECT not in inline(r"$\frac{a}{b}$")
+    [block] = to_blocks(r"Here $\frac{a}{b}$ is a fraction.", px=42)
+    assert block["m"].count(richtext.OBJECT) == len(block["img"]) == 1
+
+
+def test_pdf_bullets_parsed_at_upload():
+    from edukindle import ingest
+    page = ("Learning objectives\n"
+            "•Understand pseudocode for algorithm description •Understand the design\n"
+            "of iterative algorithms\n"
+            "•Establish closed-forms\n"
+            "Some ordinary prose that wraps onto a second line without a full stop and\n"
+            "finishes here.\n")
+    assert [t for _, t in ingest._pdf_paragraphs(page)] == [
+        "Learning objectives",
+        "- Understand pseudocode for algorithm description",
+        "- Understand the design of iterative algorithms",
+        "- Establish closed-forms",
+        "Some ordinary prose that wraps onto a second line without a full stop and finishes here.",
+    ]

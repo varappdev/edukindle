@@ -112,6 +112,20 @@ pattern (`pgrep -f "[p]ython -m edukindle"`).
   parse (`\begin{...}`), and callers fall back to markup. Rendered at the
   Kindle's `X-EK-Px`; equations wider than `X-EK-Width` split at top-level `=`.
 - `views.py`: results and progress pages are composed server-side as docs.
+- `agents/typesetter.py`: AI rewrite of PDF sections into Markdown + LaTeX.
+  It runs on first open (waits up to `LAYOUT_WAIT_S`, otherwise returns
+  `layout_pending`) and prefetches `LAYOUT_AHEAD` sections. `faithful()`
+  rejects results that lose >15% of the words or change the length a lot.
+  The original is kept in `section["raw"]` and the state in
+  `section["layout"]`. Bump `VERSION` to redo all sections.
+- Inline maths: `inline(text, images, px)` turns complex TeX (fractions,
+  sums, limits, roots) into U+FFFC plus an `{png, w, h, d}` entry in the
+  block's `img` list. Labels (quiz options) call `inline(text)` without a
+  list and get text maths. `mathrender.render(tex, px, display)` returns
+  `(b64, w, h, depth)`; inline mode puts limits beside `\sum`/`\lim`.
+- Render-time PDF clean-up in `richtext`: `unglue_bullets()` splits
+  `•Glued •bullets` into list items (not `◦`/`·`, which maths uses), and
+  plane-1 maths letters (𝑛) become `<i>n</i>` (no Kindle font has them).
 - Explanation cache keys include `CACHE_VERSION` (service.py) and the doc
   version. Bump it when explanation formatting changes.
 
@@ -127,7 +141,8 @@ because each question stores per-option misconceptions and a hint.
   (`pager_set_doc`) or plain text: one PangoLayout per block, lines become
   rows, and pages break between rows. Headings, colon lead-ins and rows of a
   split equation are kept with what follows. Maths PNGs are drawn with
-  `cairo_mask_surface`.
+  `cairo_mask_surface`. Inline maths images are Pango shape attributes on the
+  block's U+FFFC characters, drawn by a cairo shape renderer at the baseline.
 - `net.c`: HTTP/1.1 client. One worker thread per request, blocking GIO
   sockets, `Connection: close`, result delivered with `g_idle_add`. The
   callback runs only if the owner GObject (the screen) is still alive. Each

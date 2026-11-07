@@ -25,7 +25,7 @@ class FakeLLM:
         self.calls: list[tuple[str, str]] = []
         self.fail: set[str] = set()
 
-    async def json(self, *, system, user, name, schema, max_tokens=4000):
+    async def json(self, *, system, user, name, schema, max_tokens=4000, **_):
         self.calls.append((name, user))
         if name in self.fail:
             raise LLMError("boom")

@@ -119,7 +119,7 @@ def create_app(cfg: config.Config | None = None) -> FastAPI:
 
     @app.get("/api/sections/{section_id}")
     async def section(section_id: str, request: Request):
-        return svc.open_section(section_id, **display(request))
+        return await svc.open_section(section_id, **display(request))
 
     @app.post("/api/explain")
     async def explain(req: ExplainReq, request: Request):

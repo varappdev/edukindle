@@ -24,6 +24,7 @@ from __future__ import annotations
 import html
 import re
 import textwrap
+import unicodedata
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -33,8 +34,17 @@ from . import mathrender
 # name the Regular file's unique family); the rest are for the desktop build.
 MONO = "KindleBlackboxC Regular, DejaVu Sans Mono, Liberation Mono, monospace"
 
+# Bullet glyphs PDFs use; '◦' and '·' are left out because maths uses them as operators.
+BULLET_GLYPHS = "\u2022\u25cf\u25aa\u25a0\u2023\u25ba\u27a2\u2756"  # • ● ▪ ■ ‣ ► ➢ ❖
+
 _FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})\s*([\w+#.-]*)\s*$")
-_ITEM = re.compile(r"^(\s*)([-*+\u2022]|\d{1,3}[.)])\s+(.*)$")
+# "- x", "1. x" need a space after the marker; bullet glyphs often come glued on ("•Text").
+_ITEM = re.compile(rf"^(\s*)(?:([-*+]|\d{{1,3}}[.)])\s+|([{BULLET_GLYPHS}])\s*)(.*)$")
+_GLUED_BULLET = re.compile(rf"(?:^|(?<=\s))[{BULLET_GLYPHS}]\s*")
+# PDF debris: variation selectors, pieces of tall brackets, object-replacement chars.
+_JUNK = re.compile("[\ufe00-\ufe0f\u239b-\u23ad\ufffc]")
+# Mathematical alphanumerics (𝑛, 𝐴, 𝛿, ℎ): no Kindle font has them.
+_MATH_ALNUM = "\U0001D400-\U0001D7FF\u210e"
 _HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
 _RULE = re.compile(r"^\s{0,3}([-*_])(\s*\1){2,}\s*$")
 _QUOTE = re.compile(r"^\s{0,3}>\s?(.*)$")
@@ -136,7 +146,8 @@ def join(chunks: list[str]) -> str:
 # --- inline Markdown -> Pango markup --------------------------------------------
 
 _INLINE = re.compile(
-    r"(?P<tick>`+)(?P<code>.+?)(?P=tick)"
+    rf"(?P<alnum>[{_MATH_ALNUM}]+)"
+    r"|(?P<tick>`+)(?P<code>.+?)(?P=tick)"
     r"|\\\((?P<m1>.+?)\\\)"
     r"|\$\$(?P<m2>.+?)\$\$"
     r"|(?<![\\$\w])\$(?![\s$])(?P<m3>(?:\\.|[^$\\\n])+?)(?<![\s\\])\$(?![\d$])"
@@ -168,8 +179,41 @@ def well_formed(markup: str) -> bool:
         return False
 
 
-def inline(text: str) -> str:
-    """Inline Markdown and maths -> Pango markup. Always well-formed."""
+# Inline maths that reads badly as a line of text gets typeset as an image.
+_COMPLEX_TEX = re.compile(
+    r"\\(?:[dtc]?frac|sum|prod|i*int|oint|lim|binom|begin|overline|underbrace|overbrace"
+    r"|overset|underset|stackrel)(?![A-Za-z])|\\sqrt\s*(?:\[[^\]]*\])?\s*\{[^{}]{2,}")
+OBJECT = "\ufffc"  # stands in for an inline image in the markup
+
+
+def _math_alnum(run: str) -> str:
+    """𝑛 -> <i>n</i>, 𝐀 -> <b>A</b>, 𝔸 -> 𝔸's ℝ-style letter..."""
+    out = []
+    for ch in run:
+        base = unicodedata.normalize("NFKC", ch)
+        name = unicodedata.name(ch, "")
+        if "DOUBLE-STRUCK" in name:
+            base = BLACKBOARD.get(base, base)
+        e = esc(base)
+        if "BOLD" in name and "ITALIC" in name:
+            e = f"<b><i>{e}</i></b>"
+        elif "ITALIC" in name or ch == "\u210e":  # ℎ is the italic h
+            e = f"<i>{e}</i>"
+        elif "BOLD" in name:
+            e = f"<b>{e}</b>"
+        elif "MONOSPACE" in name:
+            e = f'<span font_family="{MONO}">{e}</span>'
+        out.append(e)
+    return "".join(out).replace("</i><i>", "").replace("</i></b><b><i>", "")
+
+
+def inline(text: str, images: list | None = None, px: int | None = None) -> str:
+    """Inline Markdown and maths -> Pango markup. Always well-formed.
+
+    With `images` (a list to fill) and the reader's text size `px`, complex
+    inline maths becomes an OBJECT character plus an entry in `images`
+    {png, w, h, d (depth below the baseline)}, which the Kindle draws in line.
+    """
     if not text:
         return ""
     protected: list[str] = []
@@ -179,14 +223,21 @@ def inline(text: str) -> str:
         return chr(0xE000 + len(protected) - 1)
 
     def repl(m: re.Match) -> str:
+        if m.group("alnum") is not None:
+            return keep(_math_alnum(m.group("alnum")))
         if m.group("code") is not None:
             return keep(f'<span font_family="{MONO}">{esc(m.group("code").strip())}</span>')
         if m.group("esc") is not None:
             return keep(esc(m.group("esc")))
         tex = m.group("m1") or m.group("m2") or m.group("m3") or ""
+        if images is not None and px and _COMPLEX_TEX.search(tex):
+            img = mathrender.render(tex, px, display=False)
+            if img:
+                images.append({"png": img[0], "w": img[1], "h": img[2], "d": img[3]})
+                return keep(OBJECT)
         return keep(tex_to_markup(tex))
 
-    body = _INLINE.sub(repl, _PLACEHOLDER.sub("", text))
+    body = _INLINE.sub(repl, _JUNK.sub("", _PLACEHOLDER.sub("", text)))
     markup = _emphasis(esc(body))
     markup = _PLACEHOLDER.sub(lambda m: protected[ord(m.group()) - 0xE000], markup)
     if well_formed(markup):
@@ -653,6 +704,22 @@ def _table_text(lines: list[str]) -> str:
                      .rstrip() for r in rows)
 
 
+def unglue_bullets(line: str) -> str:
+    """'Aims: •One •Two' -> 'Aims:\n- One\n- Two'. A lone glyph mid-sentence
+    isn't a list, so it's left alone."""
+    if _ITEM.match(line) and not _ITEM.match(line).group(3):
+        return line  # already a Markdown list item
+    marks = list(_GLUED_BULLET.finditer(line))
+    if not marks or (len(marks) == 1 and line[:marks[0].start()].strip()):
+        return line
+    indent = line[:len(line) - len(line.lstrip())]
+    parts = [line[:marks[0].start()].strip()]
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(line)
+        parts.append(f"{indent}- {line[m.end():end].strip()}")
+    return "\n".join(p for p in parts if p.strip() not in ("", "-"))
+
+
 def chunk_blocks(chunk: str, para: int, px: int | None = None,
                  width: int | None = None) -> list[dict[str, Any]]:
     lines = chunk.split("\n")
@@ -675,31 +742,39 @@ def chunk_blocks(chunk: str, para: int, px: int | None = None,
     item_text: list[str] = []
     counters: dict[int, int] = {}
 
+    def text_block(kind: str, text: str, **extra: Any) -> dict[str, Any]:
+        images: list[dict[str, Any]] = []
+        block = {"t": kind, "m": inline(text, images, px), "para": para, **extra}
+        if images:
+            block["img"] = images
+        return block
+
     def flush() -> None:
         nonlocal item
         if prose:
-            blocks.append({"t": "p", "m": inline(" ".join(prose)), "para": para})
+            blocks.append(text_block("p", " ".join(prose)))
             prose.clear()
         if quote:
-            blocks.append({"t": "note", "m": inline(" ".join(quote)), "para": para})
+            blocks.append(text_block("note", " ".join(quote)))
             quote.clear()
         if table:
             blocks.append({"t": "code", "text": _table_text(table), "lang": "table",
                            "para": para})
             table.clear()
         if item is not None:
-            item["m"] = inline(" ".join(item_text))
-            blocks.append(item)
+            blocks.append(text_block("li", " ".join(item_text), **item))
             item = None
             item_text.clear()
 
+    # "intro •one •two" (PDF bullets run together or glued on) -> separate items.
+    lines = [part for line in lines for part in unglue_bullets(line).split("\n")]
     for line in lines:
         if not line.strip():
             continue
         if m := _HEADING.match(line):
             flush()
             level = min(len(m.group(1)), 3)
-            blocks.append({"t": f"h{level}", "m": inline(m.group(2)), "para": para})
+            blocks.append(text_block(f"h{level}", m.group(2)))
         elif _RULE.match(line):
             flush()
             blocks.append({"t": "hr", "para": para})
@@ -714,14 +789,14 @@ def chunk_blocks(chunk: str, para: int, px: int | None = None,
         elif m := _ITEM.match(line):
             flush()
             level = min(len(m.group(1).expandtabs(4)) // 2, 3)
-            marker = m.group(2)
+            marker = m.group(2) or "-"
             if marker[0].isdigit():
                 counters[level] = int(marker[:-1])
                 mark = f"{counters[level]}."
             else:
                 mark = BULLETS[min(level, len(BULLETS) - 1)]
-            item = {"t": "li", "lvl": level, "mark": mark, "para": para}
-            item_text.append(m.group(3).strip())
+            item = {"lvl": level, "mark": mark}
+            item_text.append(m.group(4).strip())
         elif item is not None:
             item_text.append(line.strip())  # continuation of the list item
         elif quote:
