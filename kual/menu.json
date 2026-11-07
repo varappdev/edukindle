@@ -1,0 +1,9 @@
+{
+  "items": [
+    {
+      "name": "EduKindle",
+      "priority": 0,
+      "action": "./run.sh"
+    }
+  ]
+}

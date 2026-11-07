@@ -1,0 +1,29 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "kindlehf",
+      "displayName": "Kindle (hard-float, FW >= 5.16.3) - Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/kindlehf",
+      "toolchainFile": "${sourceDir}/cmake/kindlehf.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      }
+    },
+    {
+      "name": "kindlehf-debug",
+      "inherits": "kindlehf",
+      "displayName": "Kindle (hard-float) - Debug",
+      "binaryDir": "${sourceDir}/build/kindlehf-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "kindlehf", "configurePreset": "kindlehf" },
+    { "name": "kindlehf-debug", "configurePreset": "kindlehf-debug" }
+  ]
+}
