@@ -10,9 +10,12 @@ from __future__ import annotations
 import random
 import re
 from collections import Counter
+
+from .. import richtext
 from typing import Any
 
-OFFLINE_NOTE = "(Offline mode: set OPENAI_API_KEY on the server for AI explanations.)"
+OFFLINE_NOTE = ("> *Offline mode: set OPENAI_API_KEY or OPENROUTER_API_KEY on the server "
+                "for AI explanations.*")
 
 _STOP = set("""
 a about above after again against all also am an and any are as at be because been before
@@ -74,10 +77,13 @@ def extract_concepts(doc: dict[str, Any]) -> list[dict[str, Any]]:
 def cloze_quiz(doc: dict[str, Any], section: dict[str, Any], concept_ids: list[str],
                avoid: list[str], rng: random.Random) -> list[dict[str, Any]]:
     """Fill-in-the-blank questions built from the section's own sentences."""
-    terms = key_terms(section["text"], 10)
-    pool_terms = key_terms(" ".join(s["text"] for s in doc["sections"]), 40)
+    paras = richtext.prose(section["text"]) or [section["title"]]
+    text = " ".join(paras)
+    terms = key_terms(text, 10)
+    pool_terms = key_terms(" ".join(" ".join(richtext.prose(s["text"]))
+                                    for s in doc["sections"]), 40)
     cands = []
-    for sent in dict.fromkeys(sentences(section["text"])):
+    for sent in dict.fromkeys(sentences(text)):
         n = len(sent.split())
         if not 8 <= n <= 45:
             continue
@@ -89,7 +95,6 @@ def cloze_quiz(doc: dict[str, Any], section: dict[str, Any], concept_ids: list[s
     # Prefer unseen sentences, then the section's most central terms.
     cands.sort(key=lambda c: (any(c[1][:20] in a for a in avoid), c[0]))
 
-    paras = section["text"].split("\n\n")
     questions = []
     used_terms: set[str] = set()
     used_sents: set[str] = set()
@@ -124,23 +129,35 @@ def cloze_quiz(doc: dict[str, Any], section: dict[str, Any], concept_ids: list[s
 
 def explain(section: dict[str, Any], mode: str, paragraph: str | None,
             concept: dict[str, Any] | None) -> dict[str, str]:
-    paras = section["text"].split("\n\n")
+    """Markdown built from the section's own sentences and formulas."""
+    paras = richtext.prose(section["text"])
+    formulas = [c for c in richtext.paragraphs(section["text"])
+                if richtext.kind_of(c) == "math"]
     if mode == "summary":
         points = [sentences(p)[0] for p in paras if sentences(p)][:6]
-        body = "\n".join("• " + p for p in points)
-        return {"title": f"Key points: {section['title']}", "body": body + "\n\n" + OFFLINE_NOTE}
+        body = "\n".join("- " + p for p in points)
+        if formulas:
+            body += "\n\n" + "\n\n".join(formulas[:2])
+        return {"title": "Key points", "body": body + "\n\n" + OFFLINE_NOTE}
     if mode == "paragraph" and paragraph:
-        sents = sentences(paragraph)
-        body = "In short: " + (sents[0] if sents else paragraph)
-        if len(sents) > 1:
-            body += "\n\nStep by step:\n" + "\n".join("• " + s for s in sents[1:])
+        kind = richtext.kind_of(paragraph)
+        if kind in ("code", "math"):
+            what = "code" if kind == "code" else "formula"
+            body = (f"This {what} is part of *{section['title']}*. Read the sentence just "
+                    f"before it, then go through the {what} one piece at a time.\n\n"
+                    + paragraph)
+        else:
+            sents = sentences(" ".join(richtext.prose(paragraph)) or paragraph)
+            body = "**In short:** " + (sents[0] if sents else paragraph)
+            if len(sents) > 1:
+                body += "\n\n**Step by step:**\n\n" + "\n".join("- " + x for x in sents[1:])
         return {"title": "This paragraph, step by step", "body": body + "\n\n" + OFFLINE_NOTE}
     if mode == "concept" and concept:
         body = concept.get("description") or concept["label"]
         return {"title": concept["label"], "body": body + "\n\n" + OFFLINE_NOTE}
     # "simple": the opening sentence of every paragraph reads as a plain digest.
     body = "\n\n".join(sentences(p)[0] for p in paras if sentences(p))
-    return {"title": f"In simple terms: {section['title']}", "body": body + "\n\n" + OFFLINE_NOTE}
+    return {"title": "In simple terms", "body": body + "\n\n" + OFFLINE_NOTE}
 
 
 def coach_note(doc_title: str, weak: list[str], learning: list[str], mastered: list[str],
@@ -149,8 +166,10 @@ def coach_note(doc_title: str, weak: list[str], learning: list[str], mastered: l
     if mastered:
         parts.append(f"Solid so far: {', '.join(mastered[:4])}.")
     if weak:
-        parts.append(f"Your biggest gaps are {', '.join(weak[:3])}. Re-read those sections "
-                     "and retake their checks before moving on, since later topics build on them.")
+        gaps = "gap is" if len(weak) == 1 else "gaps are"
+        parts.append(f"Your biggest {gaps} {', '.join(weak[:3])}. Re-read "
+                     f"{'that section' if len(weak) == 1 else 'those sections'} and retake the "
+                     "check before moving on, since later topics build on it.")
     elif learning:
         parts.append(f"You're getting there with {', '.join(learning[:3])}; one more "
                      "check on each should lock them in.")

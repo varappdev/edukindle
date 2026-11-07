@@ -18,6 +18,18 @@ log = logging.getLogger("edukindle.api")
 MAX_UPLOAD = 40 * 1024 * 1024
 
 
+def display(request: Request) -> dict[str, int | None]:
+    """The Kindle sends its reading-text size and page width (device pixels) so
+    display maths is rendered to match its text and wrapped to fit its page."""
+    out: dict[str, int | None] = {}
+    for key, header in (("px", "x-ek-px"), ("width", "x-ek-width")):
+        try:
+            out[key] = int(request.headers[header])
+        except (KeyError, ValueError):
+            out[key] = None
+    return out
+
+
 class ExplainReq(BaseModel):
     section_id: str
     mode: str = "summary"
@@ -106,24 +118,25 @@ def create_app(cfg: config.Config | None = None) -> FastAPI:
         return {"ok": True}
 
     @app.get("/api/sections/{section_id}")
-    async def section(section_id: str):
-        return svc.open_section(section_id)
+    async def section(section_id: str, request: Request):
+        return svc.open_section(section_id, **display(request))
 
     @app.post("/api/explain")
-    async def explain(req: ExplainReq):
-        return await svc.explain(req.section_id, req.mode, req.paragraph, req.concept_id)
+    async def explain(req: ExplainReq, request: Request):
+        return await svc.explain(req.section_id, req.mode, req.paragraph, req.concept_id,
+                                 **display(request))
 
     @app.post("/api/quiz")
     async def quiz(req: QuizReq):
         return await svc.start_quiz(req.section_id)
 
     @app.post("/api/quiz/{quiz_id}/answers")
-    async def answers(quiz_id: str, req: AnswersReq):
-        return svc.answer(quiz_id, req.answers)
+    async def answers(quiz_id: str, req: AnswersReq, request: Request):
+        return svc.answer(quiz_id, req.answers, **display(request))
 
     @app.get("/api/progress/{doc_id}")
-    async def progress(doc_id: str):
-        return svc.progress(doc_id)
+    async def progress(doc_id: str, request: Request):
+        return svc.progress(doc_id, with_doc=True, **display(request))
 
     @app.get("/api/graph/{doc_id}")
     async def graph(doc_id: str):

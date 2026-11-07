@@ -17,7 +17,7 @@ import re
 import uuid
 from typing import Any
 
-from .. import knowledge
+from .. import knowledge, richtext
 from ..llm import INT, LLM, LLMError, STR, arr, obj
 from ..store import now
 from . import offline
@@ -26,8 +26,21 @@ log = logging.getLogger("edukindle.educator")
 
 SYSTEM = """You are the Socratic Educator inside EduKindle, a distraction-free study \
 app on an E-ink Kindle. You help a student understand textbook material and check \
-their comprehension. Be warm, precise and brief. Write plain text only: no Markdown, \
-no LaTeX. Write math inline with plain characters and Unicode (x², √x, f'(x), dy/dx, π)."""
+their comprehension. Be warm, precise and brief.
+
+Formatting: the Kindle renders this Markdown subset and nothing else:
+- paragraphs separated by a blank line
+- "- " bullet lists and "1. " numbered lists (indent two spaces to nest)
+- **bold**, *italic*, `inline code`
+- fenced code blocks with a language: ```python ... ```
+- LaTeX maths: $...$ inline, and $$...$$ on lines of its own for display maths
+- "> " for a short highlighted note
+No tables, images, links, HTML or headings. Write all maths in LaTeX \
+(e.g. $f'(x) = 3x^2$, $\\frac{dy}{dx}$), never as ASCII like x^2 outside dollar signs."""
+
+INLINE_RULE = """In every text field use only inline formatting: $...$ for maths, \
+`backticks` for code, **bold**/*italic*. No display maths, code blocks, lists or \
+line breaks inside a field."""
 
 _QUESTION = obj({
     "concept": STR,
@@ -72,14 +85,18 @@ def _valid(q: dict[str, Any]) -> bool:
             and len({q["correct_answer"], *(d["text"] for d in q["distractors"][:3])}) == 4)
 
 
-def _plain(text: str) -> str:
-    """Strip any Markdown the model slipped in; the Kindle renders plain text."""
-    text = re.sub(r"\*\*(.+?)\*\*|__(.+?)__", lambda m: m.group(1) or m.group(2), text)
-    text = re.sub(r"^#{1,6}\s*", "", text, flags=re.M)
-    text = re.sub(r"^\s*[-*]\s+", "• ", text, flags=re.M)
-    text = re.sub(r"`([^`]*)`", r"\1", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
+def _title(text: str) -> str:
+    """Titles show in a one-line header: plain text only."""
+    return richtext.plain_inline(re.sub(r"^#{1,6}\s*", "", text.strip()))[:80]
+
+
+def _tidy(md: str) -> str:
+    """Normalise model Markdown to the subset the Kindle renders."""
+    md = md.replace("\r\n", "\n").strip()
+    md = re.sub(r"^(\s*)[\u2022\u25cf]\s+", r"\1- ", md, flags=re.M)  # "• x" -> "- x"
+    md = re.sub(r"^#{4,6}\s+", "### ", md, flags=re.M)
+    md = re.sub(r"\n{3,}", "\n\n", md)
+    return md
 
 
 class SocraticEducator:
@@ -148,6 +165,7 @@ Concepts in this section and the student's current mastery:
 {chr(10).join(lines)}
 
 Rules:
+- {INLINE_RULE}
 - Exactly 3 questions. Cover the concepts above, giving more weight to weak or unknown ones.
 - Set "concept" to one of the concept ids above, exactly as written.
 - Each question has one correct_answer and exactly 3 distractors. Every option under 90 characters.
@@ -178,8 +196,9 @@ Section text:
             return offline.explain(section, mode, paragraph, concept)
 
         if mode == "summary":
-            task = ("Summarise this section as 4-6 short bullet points (start each line "
-                    "with '• '), then one line starting 'Big idea:'. Title: 'Key points'.")
+            task = ("Summarise this section as 4-6 short bullet points, then a final "
+                    "\"> **Big idea:** ...\" note. Put key formulas in display maths. "
+                    "Title: 'Key points'.")
         elif mode == "simple":
             task = ("Re-explain this whole section in simple terms for a student who "
                     "found it confusing: short paragraphs, one everyday analogy, and one "
@@ -203,7 +222,7 @@ Section text:
         except LLMError as e:
             log.warning("explain failed, using offline: %s", e)
             return offline.explain(section, mode, paragraph, concept)
-        return {"title": _plain(data["title"])[:80], "body": _plain(data["body"])}
+        return {"title": _title(data["title"]), "body": _tidy(data["body"])}
 
     # -- grading ---------------------------------------------------------------
 

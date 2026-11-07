@@ -87,11 +87,15 @@ def test_llm_failure_falls_back_to_bank(setup):
     assert quiz["source"] == "offline" and len(quiz["questions"]) == 3
 
 
-def test_llm_explain_strips_markdown(setup):
+def test_llm_explain_keeps_markdown_and_renders_doc(setup):
     client, _ = setup
     out = client.post("/api/explain", json={"section_id": f"{SAMPLE}.1", "mode": "summary"}).json()
-    assert out["title"] == "Key points"
-    assert out["body"] == "Bold idea\n• one\n• two"
+    assert out["title"] == "Key points"  # header text is plain
+    assert out["body"] == "**Bold** idea\n- one\n- two"
+    blocks = out["doc"]["blocks"]
+    assert [b["t"] for b in blocks] == ["p", "li", "li"]
+    assert blocks[0]["m"] == "<b>Bold</b> idea"
+    assert [b["mark"] for b in blocks[1:]] == ["\u2022", "\u2022"]
 
 
 def test_llm_concept_mapping_sanitised(setup):

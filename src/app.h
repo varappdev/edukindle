@@ -21,12 +21,21 @@ void app_on_resume(GtkWidget *screen, void (*fn)(gpointer data), gpointer data);
 void app_set_pager(GtkWidget *screen, Pager *pager);
 
 void app_toast(const char *fmt, ...) G_GNUC_PRINTF(1, 2);
+/* Remembers a working server address in edukindle.conf. */
+void app_save_server(const char *label);
 void app_quit(void);
+
+/* Shown where a page needs a server feature an older server lacks. */
+#define APP_OLD_SERVER                                                                     \
+    "This page needs a newer EduKindle server. Restart the server on your computer to " \
+    "update it."
 
 /* Shows a server error as a toast; returns TRUE if there was one. */
 gboolean app_check(NetResponse *resp);
 
 /* Screens */
+/* startup: first screen; auto-connects to the saved server, then becomes Home. */
+GtkWidget *screen_connect_new(gboolean startup);
 GtkWidget *screen_home_new(void);
 GtkWidget *screen_toc_new(const char *doc_id);
 GtkWidget *screen_reader_new(const char *section_id);

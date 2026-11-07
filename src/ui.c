@@ -6,6 +6,9 @@
 /* Kindle fonts first, then common desktop fallbacks for testing on a PC. */
 #define FONT_UI "Amazon Ember, Helvetica Neue LT, Futura, DejaVu Sans, Sans"
 #define FONT_READ "Bookerly, Caecilia, Georgia, DejaVu Serif, Serif"
+/* The Kindle's monospace font. "monospace" doesn't map to it, and all four of its
+ * files claim the same weight, so name the Regular file's unique family. */
+#define FONT_MONO "KindleBlackboxC Regular, DejaVu Sans Mono, Liberation Mono, Monospace"
 
 static int screen_w = 1072, screen_h = 1448;
 static double scale = 1.0;
@@ -45,7 +48,9 @@ int ui_content_w(void) { return screen_w - 2 * ui_px(UI_MARGIN); }
 PangoFontDescription *ui_font(UiFace face, double px, gboolean bold)
 {
     PangoFontDescription *fd = pango_font_description_new();
-    pango_font_description_set_family(fd, face == UI_FONT_READ ? FONT_READ : FONT_UI);
+    pango_font_description_set_family(fd, face == UI_FONT_READ   ? FONT_READ
+                                          : face == UI_FONT_MONO ? FONT_MONO
+                                                                 : FONT_UI);
     pango_font_description_set_absolute_size(fd, ui_px(px) * PANGO_SCALE);
     pango_font_description_set_weight(fd, bold ? PANGO_WEIGHT_BOLD : PANGO_WEIGHT_NORMAL);
     return fd;
@@ -549,16 +554,48 @@ int ui_rows_fitting(double reserved_px, double row_px)
     return n < 2 ? 2 : n;
 }
 
-/* --- Pager -------------------------------------------------------------------- */
+/* --- Pager: paginated rich text ------------------------------------------------
+ *
+ * Content is a list of blocks (paragraphs, headings, list items, notes, code,
+ * display maths, rules), either from the server's rendered documents or from
+ * plain text split on blank lines. Each text block gets its own PangoLayout,
+ * which is what makes hanging indents and per-block fonts possible. Lines
+ * become "rows"; pages break between rows, so no line is ever cut in half.
+ */
+
+typedef enum { BLK_PARA, BLK_HEADING, BLK_ITEM, BLK_NOTE, BLK_CODE, BLK_MATH, BLK_RULE } BlockKind;
+
+typedef struct {
+    BlockKind kind;
+    int level;      /* heading level 1-3, list nesting */
+    char *markup;   /* text blocks, and the fallback for maths without an image */
+    char *code;     /* code blocks: plain text, whitespace kept */
+    char *marker;   /* list marker: "•", "1." */
+    int para;       /* source paragraph index, -1 if none */
+    cairo_surface_t *image; /* display maths, black ink as alpha */
+    /* Layout results, in document pixels. */
+    PangoLayout *layout;
+    PangoLayout *mark_layout;
+    double y, h;    /* block box: top and height */
+    double tx, ty;  /* where the text or image starts, relative to the box */
+    double scale;   /* image scale */
+    double mark_x;
+} Block;
+
+typedef struct {
+    double top, bottom;
+    gboolean keep_with_next; /* heading lines stay on the page of what follows */
+} Row;
 
 struct Pager {
     GtkWidget *area;
-    PangoFontDescription *font;
-    PangoLayout *layout;
-    char *text;
-    gboolean markup;
-    int laid_out_w;
-    GArray *tops; /* y (px) where each page starts, plus a final sentinel */
+    UiFace face;
+    double px;     /* base text size, design px */
+    int image_px;  /* device px the server rendered maths at (0 = as is) */
+    GArray *blocks;
+    GArray *rows;
+    GArray *tops;  /* y where each page starts, plus the document height */
+    int laid_out_w, laid_out_h;
     int page;
     gboolean select_mode;
     PagerFn on_change;
@@ -573,14 +610,35 @@ struct Pager {
 static int pager_pad(void) { return ui_px(6); }
 int pager_pages(Pager *p);
 
+static void block_clear(Block *b)
+{
+    g_free(b->markup);
+    g_free(b->code);
+    g_free(b->marker);
+    if (b->image)
+        cairo_surface_destroy(b->image);
+    if (b->layout)
+        g_object_unref(b->layout);
+    if (b->mark_layout)
+        g_object_unref(b->mark_layout);
+}
+
+static void pager_clear(Pager *p)
+{
+    for (guint i = 0; i < p->blocks->len; i++)
+        block_clear(&g_array_index(p->blocks, Block, i));
+    g_array_set_size(p->blocks, 0);
+    g_array_set_size(p->rows, 0);
+    g_array_set_size(p->tops, 0);
+}
+
 static void pager_free(gpointer data)
 {
     Pager *p = data;
-    if (p->layout)
-        g_object_unref(p->layout);
-    pango_font_description_free(p->font);
+    pager_clear(p);
+    g_array_free(p->blocks, TRUE);
+    g_array_free(p->rows, TRUE);
     g_array_free(p->tops, TRUE);
-    g_free(p->text);
     g_free(p);
 }
 
@@ -596,50 +654,242 @@ static void pager_notify(Pager *p)
         p->on_change(p, p->change_data);
 }
 
-/* Splits the layout into pages at line boundaries for the current size. */
+/* Design-px sizes relative to the base text size. */
+static int em(Pager *p, double f)
+{
+    return ui_px(p->px * f);
+}
+
+static PangoLayout *text_layout(Pager *p, Block *b, int width)
+{
+    PangoLayout *l = gtk_widget_create_pango_layout(p->area, NULL);
+    PangoFontDescription *fd;
+    switch (b->kind) {
+    case BLK_HEADING: {
+        static const double scale[] = {1.3, 1.15, 1.0};
+        fd = ui_font(UI_FONT_UI, p->px * scale[CLAMP(b->level, 1, 3) - 1], TRUE);
+        break;
+    }
+    case BLK_CODE:
+        fd = ui_font(UI_FONT_MONO, p->px * 0.72, FALSE);
+        break;
+    default:
+        fd = ui_font(p->face, p->px, FALSE);
+    }
+    pango_layout_set_font_description(l, fd);
+    pango_font_description_free(fd);
+    pango_layout_set_width(l, MAX(width, 1) * PANGO_SCALE);
+    pango_layout_set_spacing(l, em(p, b->kind == BLK_CODE ? 0.12 : 0.2) * PANGO_SCALE);
+    if (b->kind == BLK_CODE) {
+        pango_layout_set_wrap(l, PANGO_WRAP_CHAR); /* long code lines wrap, never vanish */
+        pango_layout_set_text(l, b->code ? b->code : "", -1);
+    } else {
+        pango_layout_set_wrap(l, PANGO_WRAP_WORD_CHAR);
+        if (b->kind == BLK_MATH)
+            pango_layout_set_alignment(l, PANGO_ALIGN_CENTER);
+        pango_layout_set_markup(l, b->markup ? b->markup : "", -1);
+    }
+    return l;
+}
+
+static double gap_before(Pager *p, const Block *prev, const Block *b)
+{
+    if (!prev)
+        return 0;
+    if (b->kind == BLK_HEADING)
+        return em(p, 0.9);
+    if (prev->kind == BLK_HEADING)
+        return em(p, 0.35);
+    if (b->kind == BLK_ITEM && prev->kind == BLK_ITEM)
+        return em(p, 0.25);
+    if (b->kind == BLK_MATH && prev->kind == BLK_MATH)
+        return em(p, 0.3);
+    return em(p, 0.6);
+}
+
+static void add_row(Pager *p, double top, double bottom, gboolean keep)
+{
+    Row r = {top, bottom, keep};
+    g_array_append_val(p->rows, r);
+}
+
+/* Rows for each line of a text block; the first and last absorb its padding. */
+static void add_text_rows(Pager *p, Block *b)
+{
+    PangoLayoutIter *it = pango_layout_get_iter(b->layout);
+    guint first = p->rows->len;
+    do {
+        PangoRectangle r;
+        pango_layout_iter_get_line_extents(it, NULL, &r);
+        add_row(p, b->y + b->ty + PANGO_PIXELS_FLOOR(r.y),
+                b->y + b->ty + PANGO_PIXELS_CEIL(r.y + r.height), b->kind == BLK_HEADING);
+    } while (pango_layout_iter_next_line(it));
+    pango_layout_iter_free(it);
+    g_array_index(p->rows, Row, first).top = b->y;
+    g_array_index(p->rows, Row, p->rows->len - 1).bottom = b->y + b->h;
+}
+
 static void pager_relayout(Pager *p)
 {
     GtkAllocation a;
     gtk_widget_get_allocation(p->area, &a);
     int w = a.width - 2 * pager_pad(), h = a.height - 2 * pager_pad();
-    if (w <= 1 || h <= 1 || !p->text)
+    if (w <= 1 || h <= 1)
         return;
-
-    if (!p->layout) {
-        p->layout = gtk_widget_create_pango_layout(p->area, NULL);
-        pango_layout_set_font_description(p->layout, p->font);
-        pango_layout_set_wrap(p->layout, PANGO_WRAP_WORD_CHAR);
-        pango_layout_set_spacing(p->layout, ui_px(8) * PANGO_SCALE);
-    }
-    if (p->markup)
-        pango_layout_set_markup(p->layout, p->text, -1);
-    else
-        pango_layout_set_text(p->layout, p->text, -1);
-    pango_layout_set_width(p->layout, w * PANGO_SCALE);
     p->laid_out_w = a.width;
-
+    p->laid_out_h = a.height;
+    g_array_set_size(p->rows, 0);
     g_array_set_size(p->tops, 0);
-    int top = 0;
-    g_array_append_val(p->tops, top);
-    PangoLayoutIter *it = pango_layout_get_iter(p->layout);
-    do {
-        PangoRectangle r;
-        pango_layout_iter_get_line_extents(it, NULL, &r);
-        int y0 = PANGO_PIXELS_FLOOR(r.y), y1 = PANGO_PIXELS_CEIL(r.y + r.height);
-        if (y1 - top > h && y0 > top) {
-            top = y0;
-            g_array_append_val(p->tops, top);
+
+    double y = 0;
+    Block *prev = NULL;
+    for (guint i = 0; i < p->blocks->len; i++) {
+        Block *b = &g_array_index(p->blocks, Block, i);
+        y += gap_before(p, prev, b);
+        b->y = y;
+        if (b->layout)
+            g_object_unref(b->layout);
+        b->layout = NULL;
+        int lw, lh;
+
+        switch (b->kind) {
+        case BLK_PARA:
+        case BLK_HEADING:
+            b->tx = b->ty = 0;
+            b->layout = text_layout(p, b, w);
+            pango_layout_get_pixel_size(b->layout, &lw, &lh);
+            b->h = lh;
+            break;
+        case BLK_ITEM: {
+            if (b->mark_layout)
+                g_object_unref(b->mark_layout);
+            b->mark_layout = text_layout(p, &(Block){.kind = BLK_PARA, .markup = b->marker}, w);
+            int mw, mh;
+            pango_layout_get_pixel_size(b->mark_layout, &mw, &mh);
+            double indent = b->level * em(p, 1.1);
+            double column = MAX(mw, em(p, 0.6)) + em(p, 0.45);
+            b->mark_x = indent + column - em(p, 0.45) - mw; /* right-aligned markers */
+            b->tx = indent + column;
+            b->ty = 0;
+            b->layout = text_layout(p, b, w - (int)b->tx);
+            pango_layout_get_pixel_size(b->layout, &lw, &lh);
+            b->h = lh;
+            break;
         }
-    } while (pango_layout_iter_next_line(it));
-    pango_layout_iter_free(it);
-    int end, unused;
-    pango_layout_get_pixel_size(p->layout, &unused, &end);
+        case BLK_NOTE:
+            b->tx = ui_px(6) + em(p, 0.45); /* left bar + padding */
+            b->ty = em(p, 0.25);
+            b->layout = text_layout(p, b, w - (int)b->tx);
+            pango_layout_get_pixel_size(b->layout, &lw, &lh);
+            b->h = lh + 2 * b->ty;
+            break;
+        case BLK_CODE:
+            b->tx = b->ty = ui_px(2) + em(p, 0.35);
+            b->layout = text_layout(p, b, w - 2 * (int)b->tx);
+            pango_layout_get_pixel_size(b->layout, &lw, &lh);
+            b->h = lh + 2 * b->ty;
+            break;
+        case BLK_MATH:
+            if (b->image) {
+                int iw = cairo_image_surface_get_width(b->image);
+                int ih = cairo_image_surface_get_height(b->image);
+                /* The server renders at the reader's text size; scale for this
+                 * pager's text size, and never wider than the page. */
+                b->scale = p->image_px > 0 ? (double)ui_px(p->px) / p->image_px : 1.0;
+                if (iw * b->scale > w)
+                    b->scale = (double)w / iw;
+                b->tx = (w - iw * b->scale) / 2;
+                b->ty = 0;
+                b->h = ih * b->scale;
+            } else {
+                b->tx = b->ty = 0;
+                b->layout = text_layout(p, b, w);
+                pango_layout_get_pixel_size(b->layout, &lw, &lh);
+                b->h = lh;
+            }
+            break;
+        case BLK_RULE:
+            b->tx = b->ty = 0;
+            b->h = em(p, 0.5);
+            break;
+        }
+
+        if (b->layout)
+            add_text_rows(p, b);
+        else
+            add_row(p, b->y, b->y + b->h, FALSE);
+        /* Rows of one equation (split at "=" by the server) stay on one page, and
+         * so does a lead-in line ending in a colon with the formula it introduces. */
+        guint before = p->rows->len - (b->layout ? (guint)pango_layout_get_line_count(b->layout)
+                                                 : 1u);
+        if (prev && b->kind == BLK_MATH && before > 0 &&
+            ((prev->kind == BLK_MATH && prev->para == b->para && b->para >= 0) ||
+             (prev->kind == BLK_PARA && prev->markup && g_str_has_suffix(prev->markup, ":"))))
+            g_array_index(p->rows, Row, before - 1).keep_with_next = TRUE;
+        y += b->h;
+        prev = b;
+    }
+
+    /* Paginate between rows. */
+    double top = 0;
+    g_array_append_val(p->tops, top);
+    for (guint i = 0; i < p->rows->len; i++) {
+        Row *r = &g_array_index(p->rows, Row, i);
+        if (r->bottom - top <= h || r->top <= top)
+            continue;
+        guint start = i;
+        while (start > 0 && g_array_index(p->rows, Row, start - 1).keep_with_next &&
+               g_array_index(p->rows, Row, start - 1).top > top)
+            start--;
+        top = g_array_index(p->rows, Row, start).top;
+        g_array_append_val(p->tops, top);
+    }
+    double end = MAX(y, top + 1);
     g_array_append_val(p->tops, end);
 
-    int pages = (int)p->tops->len - 1;
-    if (p->page >= pages)
-        p->page = pages - 1;
+    if (p->page >= pager_pages(p))
+        p->page = pager_pages(p) - 1;
     pager_notify(p);
+}
+
+static void draw_block(cairo_t *cr, Pager *p, Block *b, double width)
+{
+    switch (b->kind) {
+    case BLK_NOTE:
+        cairo_rectangle(cr, 0, b->y, ui_px(6), b->h);
+        cairo_fill(cr);
+        break;
+    case BLK_CODE: {
+        double lw = ui_px(2);
+        cairo_set_line_width(cr, lw);
+        cairo_rectangle(cr, lw / 2, b->y + lw / 2, width - lw, b->h - lw);
+        cairo_stroke(cr);
+        break;
+    }
+    case BLK_RULE:
+        cairo_rectangle(cr, 0, b->y + b->h / 2 - ui_px(1.5), width, ui_px(3));
+        cairo_fill(cr);
+        return;
+    case BLK_ITEM:
+        cairo_move_to(cr, b->mark_x, b->y);
+        pango_cairo_show_layout(cr, b->mark_layout);
+        break;
+    case BLK_MATH:
+        if (b->image) {
+            cairo_save(cr);
+            cairo_translate(cr, b->tx, b->y);
+            cairo_scale(cr, b->scale, b->scale);
+            cairo_mask_surface(cr, b->image, 0, 0); /* ink = the image's alpha */
+            cairo_restore(cr);
+            return;
+        }
+        break;
+    default:
+        break;
+    }
+    (void)p;
+    cairo_move_to(cr, b->tx, b->y + b->ty);
+    pango_cairo_show_layout(cr, b->layout);
 }
 
 static gboolean pager_expose(GtkWidget *w, GdkEventExpose *ev, gpointer data)
@@ -647,7 +897,7 @@ static gboolean pager_expose(GtkWidget *w, GdkEventExpose *ev, gpointer data)
     Pager *p = data;
     GtkAllocation a;
     gtk_widget_get_allocation(w, &a);
-    if (a.width != p->laid_out_w)
+    if (a.width != p->laid_out_w || a.height != p->laid_out_h)
         pager_relayout(p);
 
     cairo_t *cr = gdk_cairo_create(gtk_widget_get_window(w));
@@ -655,14 +905,19 @@ static gboolean pager_expose(GtkWidget *w, GdkEventExpose *ev, gpointer data)
     cairo_clip(cr);
     cairo_set_source_rgb(cr, 1, 1, 1);
     cairo_paint(cr);
-    if (p->layout && p->tops->len >= 2) {
-        int top = g_array_index(p->tops, int, p->page);
-        int bottom = g_array_index(p->tops, int, p->page + 1);
+    if (p->tops->len >= 2) {
+        double top = g_array_index(p->tops, double, p->page);
+        double bottom = g_array_index(p->tops, double, p->page + 1);
         cairo_rectangle(cr, 0, pager_pad(), a.width, bottom - top);
         cairo_clip(cr);
+        cairo_translate(cr, pager_pad(), pager_pad() - top);
         cairo_set_source_rgb(cr, 0, 0, 0);
-        cairo_move_to(cr, pager_pad(), pager_pad() - top);
-        pango_cairo_show_layout(cr, p->layout);
+        double width = a.width - 2 * pager_pad();
+        for (guint i = 0; i < p->blocks->len; i++) {
+            Block *b = &g_array_index(p->blocks, Block, i);
+            if (b->y < bottom && b->y + b->h > top)
+                draw_block(cr, p, b, width);
+        }
     }
     cairo_destroy(cr);
     return TRUE;
@@ -673,6 +928,26 @@ static void pager_size_allocate(GtkWidget *w, GtkAllocation *a, gpointer data)
     (void)w;
     (void)a;
     pager_relayout(data);
+}
+
+/* The source paragraph of the block under a tap, or -1. */
+static int pager_hit(Pager *p, double x, double y)
+{
+    (void)x;
+    if (p->tops->len < 2)
+        return -1;
+    double doc_y = y - pager_pad() + g_array_index(p->tops, double, p->page);
+    int best = -1;
+    double best_dist = ui_px(p->px); /* taps in the gap between blocks still count */
+    for (guint i = 0; i < p->blocks->len; i++) {
+        Block *b = &g_array_index(p->blocks, Block, i);
+        double dist = doc_y < b->y ? b->y - doc_y : doc_y > b->y + b->h ? doc_y - b->y - b->h : 0;
+        if (dist < best_dist && b->para >= 0) {
+            best = b->para;
+            best_dist = dist;
+        }
+    }
+    return best;
 }
 
 static gboolean pager_press(GtkWidget *w, GdkEventButton *ev, gpointer data)
@@ -704,13 +979,10 @@ static gboolean pager_release(GtkWidget *w, GdkEventButton *ev, gpointer data)
             pager_prev(p);
         return TRUE;
     }
-    if (p->select_mode && p->on_select && p->layout) {
-        int top = g_array_index(p->tops, int, p->page);
-        int index, trailing;
-        int x = (int)ev->x - pager_pad(), y = (int)ev->y - pager_pad() + top;
-        pango_layout_xy_to_index(p->layout, x * PANGO_SCALE, y * PANGO_SCALE, &index,
-                                 &trailing);
-        p->on_select(p, index, p->select_data);
+    if (p->select_mode && p->on_select) {
+        int para = pager_hit(p, ev->x, ev->y);
+        if (para >= 0)
+            p->on_select(p, para, p->select_data);
         return TRUE;
     }
     /* Kindle convention: left third goes back, the rest goes forward. */
@@ -724,8 +996,12 @@ static gboolean pager_release(GtkWidget *w, GdkEventButton *ev, gpointer data)
 GtkWidget *pager_new(UiFace face, double px)
 {
     Pager *p = g_new0(Pager, 1);
-    p->font = ui_font(face, px, FALSE);
-    p->tops = g_array_new(FALSE, FALSE, sizeof(int));
+    p->face = face;
+    p->px = px;
+    p->blocks = g_array_new(FALSE, TRUE, sizeof(Block));
+    p->rows = g_array_new(FALSE, FALSE, sizeof(Row));
+    p->tops = g_array_new(FALSE, FALSE, sizeof(double));
+    p->notified_page = p->notified_pages = -1;
     p->area = gtk_drawing_area_new();
     g_object_set_data_full(G_OBJECT(p->area), "ek-pager", p, pager_free);
     gtk_widget_add_events(p->area, GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK);
@@ -746,21 +1022,92 @@ GtkWidget *pager_widget(Pager *p)
     return p->area;
 }
 
-void pager_set_text(Pager *p, const char *text, gboolean markup)
+static void pager_reset(Pager *p)
 {
-    g_free(p->text);
-    p->text = g_strdup(text ? text : "");
-    p->markup = markup;
     p->page = 0;
-    p->laid_out_w = 0;
+    p->laid_out_w = p->laid_out_h = 0;
     p->notified_page = p->notified_pages = -1;
     pager_relayout(p);
     gtk_widget_queue_draw(p->area);
 }
 
-const char *pager_text(Pager *p)
+void pager_set_text(Pager *p, const char *text)
 {
-    return p->layout ? pango_layout_get_text(p->layout) : "";
+    pager_clear(p);
+    p->image_px = 0;
+    char **paras = g_regex_split_simple("\\n\\s*\\n", text ? text : "", 0, 0);
+    int n = 0;
+    for (char **s = paras; *s; s++) {
+        char *t = g_strstrip(*s);
+        if (!*t)
+            continue;
+        Block b = {.kind = BLK_PARA, .markup = g_markup_escape_text(t, -1), .para = n++};
+        g_array_append_val(p->blocks, b);
+    }
+    g_strfreev(paras);
+    pager_reset(p);
+}
+
+typedef struct {
+    const guchar *data;
+    gsize len, pos;
+} PngReader;
+
+static cairo_status_t png_read(void *closure, unsigned char *out, unsigned int len)
+{
+    PngReader *r = closure;
+    if (r->pos + len > r->len)
+        return CAIRO_STATUS_READ_ERROR;
+    memcpy(out, r->data + r->pos, len);
+    r->pos += len;
+    return CAIRO_STATUS_SUCCESS;
+}
+
+static cairo_surface_t *png_from_base64(const char *b64)
+{
+    gsize len = 0;
+    guchar *png = g_base64_decode(b64, &len);
+    PngReader r = {png, len, 0};
+    cairo_surface_t *s = cairo_image_surface_create_from_png_stream(png_read, &r);
+    g_free(png);
+    if (cairo_surface_status(s) != CAIRO_STATUS_SUCCESS) {
+        cairo_surface_destroy(s);
+        return NULL;
+    }
+    return s;
+}
+
+void pager_set_doc(Pager *p, Json *doc)
+{
+    pager_clear(p);
+    p->image_px = json_int(doc, "px", 0);
+    json_each(jb, json_get(doc, "blocks")) {
+        const char *t = json_str(jb, "t", "p");
+        Block b = {.kind = BLK_PARA, .para = json_int(jb, "para", -1)};
+        if (t[0] == 'h' && g_ascii_isdigit(t[1])) {
+            b.kind = BLK_HEADING;
+            b.level = t[1] - '0';
+        } else if (!strcmp(t, "li")) {
+            b.kind = BLK_ITEM;
+            b.level = CLAMP(json_int(jb, "lvl", 0), 0, 3);
+            b.marker = g_markup_escape_text(json_str(jb, "mark", "\342\200\242"), -1);
+        } else if (!strcmp(t, "note")) {
+            b.kind = BLK_NOTE;
+        } else if (!strcmp(t, "code")) {
+            b.kind = BLK_CODE;
+            b.code = g_strdup(json_str(jb, "text", ""));
+        } else if (!strcmp(t, "math")) {
+            b.kind = BLK_MATH;
+            const char *png = json_str(jb, "png", NULL);
+            b.image = png ? png_from_base64(png) : NULL;
+        } else if (!strcmp(t, "hr")) {
+            b.kind = BLK_RULE;
+        }
+        if (b.kind != BLK_CODE && b.kind != BLK_RULE)
+            b.markup = g_strdup(json_str(jb, "m", ""));
+        g_array_append_val(p->blocks, b);
+    }
+    pager_reset(p);
 }
 
 void pager_on_change(Pager *p, PagerFn fn, gpointer data)

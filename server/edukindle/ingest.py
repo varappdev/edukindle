@@ -1,8 +1,9 @@
 """Turn PDFs, Markdown and plain text into a document of readable sections.
 
-Section text is normalised to paragraphs separated by exactly one blank line,
-with whitespace inside a paragraph collapsed. The Kindle client relies on that
-to map a tapped paragraph back to an index the server understands.
+Section text is stored as the Markdown subset in `richtext`: chunks separated
+by one blank line, where prose is collapsed onto one line but lists, code
+blocks and display maths keep their structure. Paragraph indices (used when a
+student taps a paragraph on the Kindle) are `richtext.paragraphs()` indices.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import re
 import unicodedata
 from typing import Any, Iterable
 
+from . import richtext
 from .store import now
 
 TARGET_WORDS = 550   # aim for sections a student can read in ~3 minutes
@@ -31,10 +33,14 @@ def slugify(text: str, max_len: int = 40) -> str:
     return slug[:max_len].strip("-") or "doc"
 
 
+_MD_HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
+_PDF_BULLET = re.compile(r"^[\u2022\u25cf\u25aa\u25e6\u2023\u2013*-]\s+(.*)$")
+
+
 def normalise_paragraphs(paragraphs: Iterable[str]) -> list[str]:
     out = []
     for p in paragraphs:
-        p = re.sub(r"\s+", " ", p).strip()
+        p = richtext.normalise(p)
         if p:
             out.append(p)
     return out
@@ -65,13 +71,16 @@ def build_document(
     raw_sections: list[tuple[str, str, list[str]]],
     source: str,
     existing_ids: Iterable[str] = (),
+    doc_id: str | None = None,
 ) -> dict[str, Any]:
-    """raw_sections: (chapter, section title, paragraphs)."""
-    base = slugify(title)
-    doc_id, n = base, 2
-    taken = set(existing_ids)
-    while doc_id in taken:
-        doc_id, n = f"{base}-{n}", n + 1
+    """raw_sections: (chapter, section title, paragraphs). Pass doc_id to
+    rebuild an existing document in place."""
+    if doc_id is None:
+        base = slugify(title)
+        doc_id, n = base, 2
+        taken = set(existing_ids)
+        while doc_id in taken:
+            doc_id, n = f"{base}-{n}", n + 1
 
     sections = []
     for chapter, stitle, paras in raw_sections:
@@ -105,47 +114,36 @@ def build_document(
 
 
 def split_text(text: str, fallback_title: str) -> list[tuple[str, str, list[str]]]:
-    """Markdown headings (#, ##) or numbered headings become sections."""
-    text = text.replace("\r\n", "\n")
+    """Markdown headings (#, ##, ###) start sections; everything else (lists,
+    code, maths, prose) is kept as Markdown chunks."""
     sections: list[tuple[str, str, list[str]]] = []
-    chapter, title, paras, buf = "", fallback_title, [], []
+    chapter, title, chunks = "", fallback_title, []
+    titled = False
 
-    def flush_para():
-        if buf:
-            paras.append(" ".join(buf))
-            buf.clear()
+    def flush() -> None:
+        if chunks:
+            sections.append((chapter, title, list(chunks)))
+            chunks.clear()
 
-    def flush_section():
-        flush_para()
-        if paras:
-            sections.append((chapter, title, list(paras)))
-            paras.clear()
-
-    for line in text.split("\n"):
-        s = line.strip()
-        md = re.match(r"^(#{1,3})\s+(.*)$", s)
-        if md:
-            flush_section()
-            level, heading = len(md.group(1)), md.group(2).strip()
-            if level == 1 and not sections and not chapter and fallback_title == title:
-                # A leading H1 is the document title, not a section.
-                title = heading
-                chapter = ""
-                continue
-            if level <= 1:
-                chapter, title = heading, heading
-            else:
-                title = heading
+    for chunk in richtext.paragraphs(text):
+        lines = chunk.split("\n")
+        m = _MD_HEADING.match(lines[0]) if richtext.kind_of(chunk) == "structured" else None
+        if not m or len(m.group(1)) > 3:
+            chunks.append(chunk)
             continue
-        if not s:
-            flush_para()
-        elif re.match(r"^[-*]\s+", s):
-            flush_para()
-            buf.append("• " + re.sub(r"^[-*]\s+", "", s))
-            flush_para()
+        level, heading = len(m.group(1)), m.group(2).strip()
+        if level == 1 and not titled and not sections and not chunks and not chapter:
+            title = heading  # a leading H1 is the document title, not a chapter
+            titled = True
         else:
-            buf.append(s)
-    flush_section()
+            flush()
+            if level == 1:
+                chapter = heading
+            title = heading
+        rest = "\n".join(lines[1:]).strip()
+        if rest:
+            chunks.append(rest)
+    flush()
     return sections
 
 
@@ -172,6 +170,10 @@ def _pdf_paragraphs(page_text: str) -> list[tuple[bool, str]]:
             flush()
             continue
         if re.fullmatch(r"\d{1,4}", s):  # page number
+            continue
+        if bullet := _PDF_BULLET.match(s):
+            flush()
+            buf.append("- " + bullet.group(1))  # becomes a Markdown list item
             continue
         if len(s) < 80 and _HEADING_RE.match(s) and not s.endswith((".", ",")):
             flush()

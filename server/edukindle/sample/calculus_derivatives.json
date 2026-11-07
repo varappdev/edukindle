@@ -1,274 +1,877 @@
 {
   "title": "Calculus I: Derivatives",
+  "version": 2,
   "concepts": [
-    {"key": "limit", "label": "Limits", "description": "The value a function approaches as its input approaches a point, whether or not the function is defined there.", "sections": [1], "prerequisites": []},
-    {"key": "continuity", "label": "Continuity", "description": "A function is continuous at a point when its limit there exists and equals its value.", "sections": [1], "prerequisites": ["limit"]},
-    {"key": "average-rate", "label": "Average Rate of Change", "description": "The slope of the secant line through two points on a graph: change in output over change in input.", "sections": [2], "prerequisites": []},
-    {"key": "derivative", "label": "The Derivative", "description": "The instantaneous rate of change, defined as the limit of the difference quotient as h approaches 0.", "sections": [2, 3], "prerequisites": ["limit", "average-rate"]},
-    {"key": "tangent-line", "label": "Tangent Lines", "description": "The line through a point on a curve whose slope is the derivative at that point.", "sections": [2], "prerequisites": ["derivative"]},
-    {"key": "power-rule", "label": "Power Rule", "description": "The derivative of x^n is n·x^(n−1) for any real exponent n.", "sections": [3], "prerequisites": ["derivative"]},
-    {"key": "linearity", "label": "Sum & Constant Rules", "description": "Derivatives split across sums and let constant factors pass straight through.", "sections": [3], "prerequisites": ["derivative"]},
-    {"key": "product-rule", "label": "Product Rule", "description": "(fg)' = f'g + fg': differentiate each factor in turn, keeping the other fixed.", "sections": [4], "prerequisites": ["power-rule", "linearity"]},
-    {"key": "quotient-rule", "label": "Quotient Rule", "description": "(f/g)' = (f'g − fg') / g²: low d-high minus high d-low, over low squared.", "sections": [4], "prerequisites": ["product-rule"]},
-    {"key": "trig-derivatives", "label": "Trig Derivatives", "description": "The derivative of sin x is cos x and the derivative of cos x is −sin x, both resting on the limit sin(h)/h → 1.", "sections": [5], "prerequisites": ["derivative", "limit"]},
-    {"key": "composition", "label": "Function Composition", "description": "Feeding the output of one function into another: f(g(x)) has an outer function f and an inner function g.", "sections": [6], "prerequisites": []},
-    {"key": "chain-rule", "label": "Chain Rule", "description": "The derivative of f(g(x)) is f'(g(x))·g'(x): outer derivative at the inner function, times the inner derivative.", "sections": [6, 7], "prerequisites": ["composition", "power-rule", "trig-derivatives"]},
-    {"key": "implicit-differentiation", "label": "Implicit Differentiation", "description": "Differentiating both sides of an equation in x and y, treating y as a function of x, then solving for dy/dx.", "sections": [7], "prerequisites": ["chain-rule", "product-rule"]}
+    {
+      "key": "limit",
+      "label": "Limits",
+      "description": "The value a function approaches as its input approaches a point, whether or not the function is defined there.",
+      "sections": [
+        1
+      ],
+      "prerequisites": []
+    },
+    {
+      "key": "continuity",
+      "label": "Continuity",
+      "description": "A function is continuous at a point when its limit there exists and equals its value.",
+      "sections": [
+        1
+      ],
+      "prerequisites": [
+        "limit"
+      ]
+    },
+    {
+      "key": "average-rate",
+      "label": "Average Rate of Change",
+      "description": "The slope of the secant line through two points on a graph: change in output over change in input.",
+      "sections": [
+        2
+      ],
+      "prerequisites": []
+    },
+    {
+      "key": "derivative",
+      "label": "The Derivative",
+      "description": "The instantaneous rate of change, defined as the limit of the difference quotient as h approaches 0.",
+      "sections": [
+        2,
+        3
+      ],
+      "prerequisites": [
+        "limit",
+        "average-rate"
+      ]
+    },
+    {
+      "key": "tangent-line",
+      "label": "Tangent Lines",
+      "description": "The line through a point on a curve whose slope is the derivative at that point.",
+      "sections": [
+        2
+      ],
+      "prerequisites": [
+        "derivative"
+      ]
+    },
+    {
+      "key": "power-rule",
+      "label": "Power Rule",
+      "description": "The derivative of x^n is n·x^(n−1) for any real exponent n.",
+      "sections": [
+        3
+      ],
+      "prerequisites": [
+        "derivative"
+      ]
+    },
+    {
+      "key": "linearity",
+      "label": "Sum & Constant Rules",
+      "description": "Derivatives split across sums and let constant factors pass straight through.",
+      "sections": [
+        3
+      ],
+      "prerequisites": [
+        "derivative"
+      ]
+    },
+    {
+      "key": "product-rule",
+      "label": "Product Rule",
+      "description": "(fg)' = f'g + fg': differentiate each factor in turn, keeping the other fixed.",
+      "sections": [
+        4
+      ],
+      "prerequisites": [
+        "power-rule",
+        "linearity"
+      ]
+    },
+    {
+      "key": "quotient-rule",
+      "label": "Quotient Rule",
+      "description": "(f/g)' = (f'g − fg') / g²: low d-high minus high d-low, over low squared.",
+      "sections": [
+        4
+      ],
+      "prerequisites": [
+        "product-rule"
+      ]
+    },
+    {
+      "key": "trig-derivatives",
+      "label": "Trig Derivatives",
+      "description": "The derivative of sin x is cos x and the derivative of cos x is −sin x, both resting on the limit sin(h)/h → 1.",
+      "sections": [
+        5
+      ],
+      "prerequisites": [
+        "derivative",
+        "limit"
+      ]
+    },
+    {
+      "key": "composition",
+      "label": "Function Composition",
+      "description": "Feeding the output of one function into another: f(g(x)) has an outer function f and an inner function g.",
+      "sections": [
+        6
+      ],
+      "prerequisites": []
+    },
+    {
+      "key": "chain-rule",
+      "label": "Chain Rule",
+      "description": "The derivative of f(g(x)) is f'(g(x))·g'(x): outer derivative at the inner function, times the inner derivative.",
+      "sections": [
+        6,
+        7
+      ],
+      "prerequisites": [
+        "composition",
+        "power-rule",
+        "trig-derivatives"
+      ]
+    },
+    {
+      "key": "implicit-differentiation",
+      "label": "Implicit Differentiation",
+      "description": "Differentiating both sides of an equation in x and y, treating y as a function of x, then solving for dy/dx.",
+      "sections": [
+        7
+      ],
+      "prerequisites": [
+        "chain-rule",
+        "product-rule"
+      ]
+    }
   ],
   "sections": [
     {
       "chapter": "Chapter 1: Foundations",
       "title": "Limits and Continuity",
       "paragraphs": [
-        "Calculus is the mathematics of change, and every idea in it rests on one tool: the limit. A limit describes the value a function approaches as its input gets closer and closer to some number. We write lim(x→a) f(x) = L to say that f(x) can be made as close to L as we like by taking x close enough to a.",
-        "The crucial point is that a limit cares about what happens near a, not at a. Consider f(x) = (x² − 1)/(x − 1). At x = 1 the formula gives 0/0, which is undefined. But for every other x we can factor the top as (x − 1)(x + 1) and cancel, leaving x + 1. As x approaches 1, the values approach 2. So lim(x→1) f(x) = 2 even though f(1) does not exist.",
-        "Sometimes a function approaches different values from the two sides. The left-hand limit looks only at inputs below a, and the right-hand limit only at inputs above a. The ordinary two-sided limit exists only when both one-sided limits exist and agree. A step function that jumps from 0 to 1 at x = 0 has a left-hand limit of 0 and a right-hand limit of 1 there, so it has no limit at 0.",
-        "A function is continuous at a point a when three things are true: f(a) is defined, the limit of f(x) as x approaches a exists, and that limit equals f(a). Informally, you can draw the graph through that point without lifting your pencil. Polynomials are continuous everywhere, and so are sin x and cos x.",
-        "Continuity matters because it lets us find limits by direct substitution. If f is continuous at a, then lim(x→a) f(x) is simply f(a). Most of the difficulty with limits comes from points where substitution fails, such as 0/0 forms, and the techniques of algebra (factoring, rationalising, simplifying) exist to rewrite the function into a form where substitution works again."
+        "Calculus is the mathematics of change, and every idea in it rests on one tool: the **limit**. A limit describes the value a function approaches as its input gets closer and closer to some number. We write",
+        "$$\\lim_{x \\to a} f(x) = L$$",
+        "to say that $f(x)$ can be made as close to $L$ as we like by taking $x$ close enough to $a$.",
+        "The crucial point is that a limit cares about what happens *near* $a$, not *at* $a$. Consider $f(x) = \\frac{x^2 - 1}{x - 1}$. At $x = 1$ the formula gives $\\frac{0}{0}$, which is undefined. But for every other $x$ we can factor the top and cancel:",
+        "$$\\frac{x^2 - 1}{x - 1} = \\frac{(x - 1)(x + 1)}{x - 1} = x + 1 \\quad (x \\neq 1)$$",
+        "As $x$ approaches 1, the values approach 2. So $\\lim_{x \\to 1} f(x) = 2$ even though $f(1)$ does not exist.",
+        "Sometimes a function approaches different values from the two sides. The **left-hand limit** $\\lim_{x \\to a^-} f(x)$ looks only at inputs below $a$, and the **right-hand limit** $\\lim_{x \\to a^+} f(x)$ only at inputs above $a$. The ordinary two-sided limit exists only when both one-sided limits exist and agree. A step function that jumps from 0 to 1 at $x = 0$ has a left-hand limit of 0 and a right-hand limit of 1 there, so it has no limit at 0.",
+        "A function is **continuous** at a point $a$ when three things are true:",
+        "1. $f(a)$ is defined,\n2. $\\lim_{x \\to a} f(x)$ exists, and\n3. the limit equals the value: $\\lim_{x \\to a} f(x) = f(a)$.",
+        "Informally, you can draw the graph through that point without lifting your pencil. Polynomials are continuous everywhere, and so are $\\sin x$ and $\\cos x$.",
+        "> **Why it matters:** if $f$ is continuous at $a$, then $\\lim_{x \\to a} f(x)$ is simply $f(a)$. Most of the difficulty with limits comes from points where substitution fails, such as $\\frac{0}{0}$ forms. Algebra (factoring, rationalising, simplifying) rewrites the function into a form where substitution works again."
       ],
       "quiz_bank": [
-        {"concept": "limit", "prompt": "For f(x) = (x² − 1)/(x − 1), what is the limit as x approaches 1?", "correct_answer": "2", "distractors": [
-          {"text": "The limit does not exist because f(1) is undefined", "misconception": "You're treating “undefined at the point” as “no limit”. A limit only looks at inputs near 1, never at 1 itself."},
-          {"text": "0", "misconception": "Substituting 1 gives 0 on top, but the bottom is 0 too. 0/0 isn't 0; it's a signal to simplify first."},
-          {"text": "1", "misconception": "You may have cancelled (x − 1) and then dropped the + 1. Check what's left after factoring the numerator."}],
+        {
+          "concept": "limit",
+          "prompt": "For f(x) = (x² − 1)/(x − 1), what is the limit as x approaches 1?",
+          "correct_answer": "2",
+          "distractors": [
+            {
+              "text": "The limit does not exist because f(1) is undefined",
+              "misconception": "You're treating “undefined at the point” as “no limit”. A limit only looks at inputs near 1, never at 1 itself."
+            },
+            {
+              "text": "0",
+              "misconception": "Substituting 1 gives 0 on top, but the bottom is 0 too. 0/0 isn't 0; it's a signal to simplify first."
+            },
+            {
+              "text": "1",
+              "misconception": "You may have cancelled (x − 1) and then dropped the + 1. Check what's left after factoring the numerator."
+            }
+          ],
           "explanation": "Factor the top as (x − 1)(x + 1) and cancel to get x + 1 for x ≠ 1; as x approaches 1 this approaches 2.",
-          "hint": "What does the numerator factor into, and what cancels once it's factored?"},
-        {"concept": "limit", "prompt": "A function's left-hand limit at x = 3 is 5 and its right-hand limit is 7. What is lim(x→3) f(x)?", "correct_answer": "It does not exist", "distractors": [
-          {"text": "6, the average of the two sides", "misconception": "Limits never average. The two-sided limit needs both sides to approach the same value."},
-          {"text": "5, because the left side comes first", "misconception": "Neither side takes priority. A two-sided limit needs agreement from both directions."},
-          {"text": "Whatever f(3) equals", "misconception": "The value at the point doesn't decide the limit. The limit depends only on nearby inputs."}],
+          "hint": "What does the numerator factor into, and what cancels once it's factored?"
+        },
+        {
+          "concept": "limit",
+          "prompt": "A function's left-hand limit at x = 3 is 5 and its right-hand limit is 7. What is lim(x→3) f(x)?",
+          "correct_answer": "It does not exist",
+          "distractors": [
+            {
+              "text": "6, the average of the two sides",
+              "misconception": "Limits never average. The two-sided limit needs both sides to approach the same value."
+            },
+            {
+              "text": "5, because the left side comes first",
+              "misconception": "Neither side takes priority. A two-sided limit needs agreement from both directions."
+            },
+            {
+              "text": "Whatever f(3) equals",
+              "misconception": "The value at the point doesn't decide the limit. The limit depends only on nearby inputs."
+            }
+          ],
           "explanation": "A two-sided limit exists only when the left- and right-hand limits agree; 5 ≠ 7, so there is no limit.",
-          "hint": "Re-read the condition the text gives for the ordinary two-sided limit to exist."},
-        {"concept": "continuity", "prompt": "Which condition is NOT part of the definition of f being continuous at x = a?", "correct_answer": "f must be differentiable at a", "distractors": [
-          {"text": "f(a) must be defined", "misconception": "This one is required: a function can't be continuous at a point where it has no value."},
-          {"text": "lim(x→a) f(x) must exist", "misconception": "This one is required too. Without a limit there's nothing for f(a) to match."},
-          {"text": "lim(x→a) f(x) must equal f(a)", "misconception": "This is the heart of continuity: the value has to match what the function approaches."}],
+          "hint": "Re-read the condition the text gives for the ordinary two-sided limit to exist."
+        },
+        {
+          "concept": "continuity",
+          "prompt": "Which condition is NOT part of the definition of f being continuous at x = a?",
+          "correct_answer": "f must be differentiable at a",
+          "distractors": [
+            {
+              "text": "f(a) must be defined",
+              "misconception": "This one is required: a function can't be continuous at a point where it has no value."
+            },
+            {
+              "text": "lim(x→a) f(x) must exist",
+              "misconception": "This one is required too. Without a limit there's nothing for f(a) to match."
+            },
+            {
+              "text": "lim(x→a) f(x) must equal f(a)",
+              "misconception": "This is the heart of continuity: the value has to match what the function approaches."
+            }
+          ],
           "explanation": "Continuity needs f(a) defined, the limit to exist, and the two to be equal. Differentiability is a stronger, separate property.",
-          "hint": "The text lists exactly three conditions. Which option isn't one of them?"},
-        {"concept": "continuity", "prompt": "Why can we find lim(x→2) (x³ + 4x) just by substituting x = 2?", "correct_answer": "Polynomials are continuous, so the limit equals the value", "distractors": [
-          {"text": "Substitution always gives the limit for any function", "misconception": "Substitution fails at 0/0 forms and jumps. It only works where the function is continuous."},
-          {"text": "Because the answer is a whole number", "misconception": "Whether the result is a whole number has nothing to do with whether substitution is valid."},
-          {"text": "Because x = 2 is positive", "misconception": "The sign of the input doesn't matter. What matters is a property of the function itself."}],
+          "hint": "The text lists exactly three conditions. Which option isn't one of them?"
+        },
+        {
+          "concept": "continuity",
+          "prompt": "Why can we find lim(x→2) (x³ + 4x) just by substituting x = 2?",
+          "correct_answer": "Polynomials are continuous, so the limit equals the value",
+          "distractors": [
+            {
+              "text": "Substitution always gives the limit for any function",
+              "misconception": "Substitution fails at 0/0 forms and jumps. It only works where the function is continuous."
+            },
+            {
+              "text": "Because the answer is a whole number",
+              "misconception": "Whether the result is a whole number has nothing to do with whether substitution is valid."
+            },
+            {
+              "text": "Because x = 2 is positive",
+              "misconception": "The sign of the input doesn't matter. What matters is a property of the function itself."
+            }
+          ],
           "explanation": "For a continuous function, lim(x→a) f(x) = f(a), and polynomials are continuous everywhere.",
-          "hint": "What property of a function lets the limit equal the function's value?"}
+          "hint": "What property of a function lets the limit equal the function's value?"
+        }
       ]
     },
     {
       "chapter": "Chapter 1: Foundations",
       "title": "The Derivative as a Limit",
       "paragraphs": [
-        "How fast is something changing at a single instant? To answer that, start with something easier: the average rate of change between two points. For a function f, the average rate of change from x = a to x = a + h is the difference quotient [f(a + h) − f(a)] / h. Geometrically, it is the slope of the secant line joining the two points on the graph.",
-        "If a car's position after t hours is s(t) = 60t², its average speed between t = 1 and t = 2 is [s(2) − s(1)] / (2 − 1) = (240 − 60)/1 = 180 km/h. That number hides the details: the car was going slower at the start of the hour and faster at the end. To get the speed at exactly t = 1, we shrink the interval.",
-        "The derivative of f at a is the limit of the difference quotient as h approaches 0: f'(a) = lim(h→0) [f(a + h) − f(a)] / h. As h shrinks, the second point slides toward the first and the secant line pivots into the tangent line. The derivative is the instantaneous rate of change, and it is the slope of the tangent line at x = a.",
-        "Let's compute one. For f(x) = x², the difference quotient at x is [(x + h)² − x²]/h = (2xh + h²)/h = 2x + h. As h approaches 0, this approaches 2x. So the derivative of x² is 2x. At x = 3 the curve is rising with slope 6, and at x = −1 it is falling with slope −2.",
-        "Once we know the slope, the tangent line follows from point-slope form: y − f(a) = f'(a)(x − a). Near a, the tangent line is an excellent approximation to the curve, which is why derivatives are used to estimate values, model motion and optimise designs. The notations f'(x), dy/dx and d/dx[f(x)] all mean the same thing: the derivative function."
+        "How fast is something changing at a single instant? Start with something easier: the **average rate of change** between two points. For a function $f$, the average rate of change from $x = a$ to $x = a + h$ is the *difference quotient*",
+        "$$\\frac{f(a + h) - f(a)}{h}$$",
+        "Geometrically, it is the slope of the **secant line** joining the two points on the graph.",
+        "If a car's position after $t$ hours is $s(t) = 60t^2$ km, its average speed between $t = 1$ and $t = 2$ is $\\frac{s(2) - s(1)}{2 - 1} = \\frac{240 - 60}{1} = 180$ km/h. That number hides the details: the car was going slower at the start of the hour and faster at the end. To get the speed at exactly $t = 1$, we shrink the interval.",
+        "The **derivative** of $f$ at $a$ is the limit of the difference quotient as $h$ approaches 0:",
+        "$$f'(a) = \\lim_{h \\to 0} \\frac{f(a + h) - f(a)}{h}$$",
+        "As $h$ shrinks, the second point slides toward the first and the secant line pivots into the **tangent line**. The derivative is the instantaneous rate of change, and it is the slope of the tangent line at $x = a$.",
+        "Let's compute one. For $f(x) = x^2$:",
+        "$$\\frac{(x + h)^2 - x^2}{h} = \\frac{2xh + h^2}{h} = 2x + h \\;\\rightarrow\\; 2x \\quad \\text{as } h \\to 0$$",
+        "So the derivative of $x^2$ is $2x$. At $x = 3$ the curve is rising with slope 6, and at $x = -1$ it is falling with slope $-2$.",
+        "You can watch the secant slopes close in on the derivative. This short Python program shrinks $h$ and prints the difference quotient of $x^2$ at $x = 3$:",
+        "```python\ndef f(x):\n    return x ** 2\n\nfor h in [1, 0.1, 0.01, 0.001]:\n    slope = (f(3 + h) - f(3)) / h\n    print(f\"h = {h:<6} slope = {slope:.4f}\")\n```",
+        "The slopes are 7, 6.1, 6.01 and 6.001: they approach $f'(3) = 6$.",
+        "Once we know the slope, the tangent line follows from point-slope form:",
+        "$$y - f(a) = f'(a)\\,(x - a)$$",
+        "Near $a$, the tangent line is an excellent approximation to the curve, which is why derivatives are used to estimate values, model motion and optimise designs. The notations $f'(x)$, $\\frac{dy}{dx}$ and $\\frac{d}{dx}\\left[f(x)\\right]$ all mean the same thing: the derivative function."
       ],
       "quiz_bank": [
-        {"concept": "derivative", "prompt": "Which expression defines f'(a)?", "correct_answer": "lim(h→0) [f(a + h) − f(a)] / h", "distractors": [
-          {"text": "[f(a + h) − f(a)] / h for a small h like 0.01", "misconception": "That's an approximation, the slope of a secant line. The derivative is the limit as h approaches 0, not any fixed h."},
-          {"text": "lim(h→0) [f(a + h) − f(a)]", "misconception": "Without dividing by h you're measuring the change in output only, which goes to 0. A rate needs output change per input change."},
-          {"text": "f(a + 1) − f(a)", "misconception": "That's the average change over an interval of width 1, not the instantaneous rate at a."}],
+        {
+          "concept": "derivative",
+          "prompt": "Which expression defines f'(a)?",
+          "correct_answer": "lim(h→0) [f(a + h) − f(a)] / h",
+          "distractors": [
+            {
+              "text": "[f(a + h) − f(a)] / h for a small h like 0.01",
+              "misconception": "That's an approximation, the slope of a secant line. The derivative is the limit as h approaches 0, not any fixed h."
+            },
+            {
+              "text": "lim(h→0) [f(a + h) − f(a)]",
+              "misconception": "Without dividing by h you're measuring the change in output only, which goes to 0. A rate needs output change per input change."
+            },
+            {
+              "text": "f(a + 1) − f(a)",
+              "misconception": "That's the average change over an interval of width 1, not the instantaneous rate at a."
+            }
+          ],
           "explanation": "The derivative is the limit of the difference quotient as the interval width h shrinks to 0.",
-          "hint": "A rate is “change in output over change in input”. What happens to the input change in the definition?"},
-        {"concept": "average-rate", "prompt": "If s(t) = 60t², what is the average rate of change of s from t = 1 to t = 2?", "correct_answer": "180", "distractors": [
-          {"text": "120", "misconception": "That's the derivative 120t at t = 1, an instantaneous rate. The question asks for the average over the interval."},
-          {"text": "240", "misconception": "240 is s(2), the position at the end. The average rate needs the change in position divided by the change in time."},
-          {"text": "90", "misconception": "Check the denominator: the time interval is 2 − 1 = 1 hour, so don't divide by 2."}],
+          "hint": "A rate is “change in output over change in input”. What happens to the input change in the definition?"
+        },
+        {
+          "concept": "average-rate",
+          "prompt": "If s(t) = 60t², what is the average rate of change of s from t = 1 to t = 2?",
+          "correct_answer": "180",
+          "distractors": [
+            {
+              "text": "120",
+              "misconception": "That's the derivative 120t at t = 1, an instantaneous rate. The question asks for the average over the interval."
+            },
+            {
+              "text": "240",
+              "misconception": "240 is s(2), the position at the end. The average rate needs the change in position divided by the change in time."
+            },
+            {
+              "text": "90",
+              "misconception": "Check the denominator: the time interval is 2 − 1 = 1 hour, so don't divide by 2."
+            }
+          ],
           "explanation": "[s(2) − s(1)]/(2 − 1) = (240 − 60)/1 = 180.",
-          "hint": "Find s(2) and s(1) first. What do you do with their difference?"},
-        {"concept": "derivative", "prompt": "Using the limit definition, the difference quotient for f(x) = x² simplifies to 2x + h. What is f'(x)?", "correct_answer": "2x", "distractors": [
-          {"text": "2x + h", "misconception": "That's the slope of a secant line. You still need to take the limit as h approaches 0."},
-          {"text": "x²", "misconception": "That's the original function, not its rate of change."},
-          {"text": "2", "misconception": "You may have dropped the x. Only the h term disappears in the limit."}],
+          "hint": "Find s(2) and s(1) first. What do you do with their difference?"
+        },
+        {
+          "concept": "derivative",
+          "prompt": "Using the limit definition, the difference quotient for f(x) = x² simplifies to 2x + h. What is f'(x)?",
+          "correct_answer": "2x",
+          "distractors": [
+            {
+              "text": "2x + h",
+              "misconception": "That's the slope of a secant line. You still need to take the limit as h approaches 0."
+            },
+            {
+              "text": "x²",
+              "misconception": "That's the original function, not its rate of change."
+            },
+            {
+              "text": "2",
+              "misconception": "You may have dropped the x. Only the h term disappears in the limit."
+            }
+          ],
           "explanation": "Taking h → 0 in 2x + h leaves 2x.",
-          "hint": "What is the very last step of the limit definition, once the h in the denominator has cancelled?"},
-        {"concept": "tangent-line", "prompt": "f(x) = x², so f'(3) = 6. Which is the tangent line at x = 3?", "correct_answer": "y − 9 = 6(x − 3)", "distractors": [
-          {"text": "y − 6 = 9(x − 3)", "misconception": "You've swapped the point and the slope. The point is (3, f(3)) = (3, 9) and the slope is f'(3) = 6."},
-          {"text": "y = 6x", "misconception": "That line has the right slope but passes through the origin, not through the point (3, 9) on the curve."},
-          {"text": "y − 9 = 3(x − 3)", "misconception": "The slope of the tangent line is the derivative at the point, not the x-coordinate."}],
+          "hint": "What is the very last step of the limit definition, once the h in the denominator has cancelled?"
+        },
+        {
+          "concept": "tangent-line",
+          "prompt": "f(x) = x², so f'(3) = 6. Which is the tangent line at x = 3?",
+          "correct_answer": "y − 9 = 6(x − 3)",
+          "distractors": [
+            {
+              "text": "y − 6 = 9(x − 3)",
+              "misconception": "You've swapped the point and the slope. The point is (3, f(3)) = (3, 9) and the slope is f'(3) = 6."
+            },
+            {
+              "text": "y = 6x",
+              "misconception": "That line has the right slope but passes through the origin, not through the point (3, 9) on the curve."
+            },
+            {
+              "text": "y − 9 = 3(x − 3)",
+              "misconception": "The slope of the tangent line is the derivative at the point, not the x-coordinate."
+            }
+          ],
           "explanation": "Point-slope form with point (3, f(3)) = (3, 9) and slope f'(3) = 6.",
-          "hint": "A line needs a point and a slope. Which number gives the point on the curve, and which gives the slope?"}
+          "hint": "A line needs a point and a slope. Which number gives the point on the curve, and which gives the slope?"
+        }
       ]
     },
     {
       "chapter": "Chapter 2: Differentiation Rules",
       "title": "The Power Rule and Linearity",
       "paragraphs": [
-        "Computing every derivative from the limit definition would be exhausting. Fortunately, patterns appear quickly. The derivative of x² is 2x, of x³ is 3x², and of x⁴ is 4x³. In general, the power rule says that for any real number n, the derivative of x^n is n·x^(n−1): bring the exponent down as a coefficient, then reduce the exponent by one.",
-        "The power rule works for negative and fractional exponents too, which makes it far more useful than it first looks. Rewrite 1/x as x^(−1); its derivative is −1·x^(−2) = −1/x². Rewrite √x as x^(1/2); its derivative is (1/2)x^(−1/2) = 1/(2√x). The key habit is to convert roots and reciprocals into powers before differentiating.",
-        "Two more rules let us handle any polynomial. The constant multiple rule says the derivative of c·f(x) is c·f'(x), so constants simply ride along. The sum rule says the derivative of f(x) + g(x) is f'(x) + g'(x), so we can differentiate term by term. Together these are called linearity. And the derivative of a constant on its own is 0, because a constant never changes.",
-        "Putting it together, the derivative of 5x³ − 4x + 7 is 15x² − 4. The 5 rides along with the power rule applied to x³, the −4x becomes −4 because x has exponent 1, and the 7 disappears. Notice that linearity does not extend to products: the derivative of f·g is not f'·g'. Products need their own rule, which comes next."
+        "Computing every derivative from the limit definition would be exhausting. Fortunately, patterns appear quickly: the derivative of $x^2$ is $2x$, of $x^3$ is $3x^2$, and of $x^4$ is $4x^3$. In general, the **power rule** says that for any real number $n$:",
+        "$$\\frac{d}{dx}\\, x^n = n\\,x^{n-1}$$",
+        "Bring the exponent down as a coefficient, then reduce the exponent by one.",
+        "The power rule works for negative and fractional exponents too, which makes it far more useful than it first looks. The key habit is to rewrite roots and reciprocals as powers *before* differentiating:",
+        "- $\\frac{1}{x} = x^{-1}$, so its derivative is $-x^{-2} = -\\frac{1}{x^2}$.\n- $\\sqrt{x} = x^{1/2}$, so its derivative is $\\frac{1}{2}x^{-1/2} = \\frac{1}{2\\sqrt{x}}$.",
+        "Two more rules let us handle any polynomial. Together they are called **linearity**:",
+        "- **Constant multiple rule:** $\\frac{d}{dx}\\left[c\\,f(x)\\right] = c\\,f'(x)$, so constants simply ride along.\n- **Sum rule:** $\\frac{d}{dx}\\left[f(x) + g(x)\\right] = f'(x) + g'(x)$, so we can differentiate term by term.\n- **Constants:** the derivative of a constant on its own is 0, because a constant never changes.",
+        "Putting it together:",
+        "$$\\frac{d}{dx}\\left(5x^3 - 4x + 7\\right) = 15x^2 - 4$$",
+        "The 5 rides along with the power rule applied to $x^3$, the $-4x$ becomes $-4$ because $x$ has exponent 1, and the 7 disappears.",
+        "> **Careful:** linearity does not extend to products. The derivative of $f \\cdot g$ is *not* $f' \\cdot g'$. Products need their own rule, which comes next."
       ],
       "quiz_bank": [
-        {"concept": "power-rule", "prompt": "What is the derivative of x⁵?", "correct_answer": "5x⁴", "distractors": [
-          {"text": "x⁴", "misconception": "You reduced the exponent but forgot to bring the old exponent down as a coefficient."},
-          {"text": "5x⁵", "misconception": "You brought the exponent down but didn't reduce it by one."},
-          {"text": "4x⁵", "misconception": "The coefficient should be the original exponent, and it's the exponent that goes down by one."}],
+        {
+          "concept": "power-rule",
+          "prompt": "What is the derivative of x⁵?",
+          "correct_answer": "5x⁴",
+          "distractors": [
+            {
+              "text": "x⁴",
+              "misconception": "You reduced the exponent but forgot to bring the old exponent down as a coefficient."
+            },
+            {
+              "text": "5x⁵",
+              "misconception": "You brought the exponent down but didn't reduce it by one."
+            },
+            {
+              "text": "4x⁵",
+              "misconception": "The coefficient should be the original exponent, and it's the exponent that goes down by one."
+            }
+          ],
           "explanation": "Power rule: bring down n = 5 and reduce the exponent by one to get 5x⁴.",
-          "hint": "The rule has two steps. What happens to the exponent, and where does the old one go?"},
-        {"concept": "power-rule", "prompt": "What is the derivative of 1/x?", "correct_answer": "−1/x²", "distractors": [
-          {"text": "1/x²", "misconception": "Rewriting as x^(−1) is right, but bringing down the exponent gives a factor of −1. Watch the sign."},
-          {"text": "0", "misconception": "1/x isn't a constant; it changes as x changes. Only constants have derivative 0."},
-          {"text": "ln x", "misconception": "That's going the other way: ln x is what you'd differentiate to get 1/x."}],
+          "hint": "The rule has two steps. What happens to the exponent, and where does the old one go?"
+        },
+        {
+          "concept": "power-rule",
+          "prompt": "What is the derivative of 1/x?",
+          "correct_answer": "−1/x²",
+          "distractors": [
+            {
+              "text": "1/x²",
+              "misconception": "Rewriting as x^(−1) is right, but bringing down the exponent gives a factor of −1. Watch the sign."
+            },
+            {
+              "text": "0",
+              "misconception": "1/x isn't a constant; it changes as x changes. Only constants have derivative 0."
+            },
+            {
+              "text": "ln x",
+              "misconception": "That's going the other way: ln x is what you'd differentiate to get 1/x."
+            }
+          ],
           "explanation": "1/x = x^(−1), so the derivative is −1·x^(−2) = −1/x².",
-          "hint": "Rewrite 1/x as a power of x first. What is the exponent?"},
-        {"concept": "linearity", "prompt": "What is the derivative of 5x³ − 4x + 7?", "correct_answer": "15x² − 4", "distractors": [
-          {"text": "15x² − 4 + 7", "misconception": "A constant on its own never changes, so its derivative is 0. The 7 should vanish."},
-          {"text": "15x² − 4x", "misconception": "The term −4x is −4x¹; applying the power rule leaves −4·x⁰ = −4."},
-          {"text": "5x² − 4", "misconception": "The constant 5 rides along, but the power rule still brings down a 3 from x³."}],
+          "hint": "Rewrite 1/x as a power of x first. What is the exponent?"
+        },
+        {
+          "concept": "linearity",
+          "prompt": "What is the derivative of 5x³ − 4x + 7?",
+          "correct_answer": "15x² − 4",
+          "distractors": [
+            {
+              "text": "15x² − 4 + 7",
+              "misconception": "A constant on its own never changes, so its derivative is 0. The 7 should vanish."
+            },
+            {
+              "text": "15x² − 4x",
+              "misconception": "The term −4x is −4x¹; applying the power rule leaves −4·x⁰ = −4."
+            },
+            {
+              "text": "5x² − 4",
+              "misconception": "The constant 5 rides along, but the power rule still brings down a 3 from x³."
+            }
+          ],
           "explanation": "Differentiate term by term: 5·3x² − 4 + 0 = 15x² − 4.",
-          "hint": "Use the sum rule to take one term at a time. What does each term become?"},
-        {"concept": "linearity", "prompt": "Which statement about derivatives is FALSE?", "correct_answer": "The derivative of f·g is f'·g'", "distractors": [
-          {"text": "The derivative of f + g is f' + g'", "misconception": "That's the sum rule, and it's true: derivatives split across sums."},
-          {"text": "The derivative of 3f is 3f'", "misconception": "That's the constant multiple rule, and it's true: constants ride along."},
-          {"text": "The derivative of a constant is 0", "misconception": "That's true: a constant never changes, so its rate of change is 0."}],
+          "hint": "Use the sum rule to take one term at a time. What does each term become?"
+        },
+        {
+          "concept": "linearity",
+          "prompt": "Which statement about derivatives is FALSE?",
+          "correct_answer": "The derivative of f·g is f'·g'",
+          "distractors": [
+            {
+              "text": "The derivative of f + g is f' + g'",
+              "misconception": "That's the sum rule, and it's true: derivatives split across sums."
+            },
+            {
+              "text": "The derivative of 3f is 3f'",
+              "misconception": "That's the constant multiple rule, and it's true: constants ride along."
+            },
+            {
+              "text": "The derivative of a constant is 0",
+              "misconception": "That's true: a constant never changes, so its rate of change is 0."
+            }
+          ],
           "explanation": "Linearity covers sums and constant multiples, not products. Products need the product rule.",
-          "hint": "The last paragraph warns about one thing linearity does not cover. What is it?"}
+          "hint": "The last paragraph warns about one thing linearity does not cover. What is it?"
+        }
       ]
     },
     {
       "chapter": "Chapter 2: Differentiation Rules",
       "title": "Product and Quotient Rules",
       "paragraphs": [
-        "When two functions are multiplied, their rates of change interact. The product rule says (f·g)' = f'·g + f·g'. In words: differentiate the first factor and keep the second, then keep the first and differentiate the second, and add the two results.",
-        "Why the sum of two terms? Picture a rectangle with sides f and g that are both growing. Its area f·g increases because the f side grows (adding a strip of area f'·g) and because the g side grows (adding a strip f·g'). Multiplying the two rates together, f'·g', would describe only the tiny corner piece, which vanishes in the limit.",
-        "Example: for y = x²·sin x, let f = x² and g = sin x. Then y' = 2x·sin x + x²·cos x. You can check the product rule on something simple: x·x = x² should have derivative 2x, and the rule gives 1·x + x·1 = 2x.",
-        "For a quotient, the rule is (f/g)' = (f'·g − f·g') / g². The order of the top matters because of the minus sign; a common memory aid is “low d-high minus high d-low, over the square of what's below”. For y = x/(x + 1), the derivative is [1·(x + 1) − x·1]/(x + 1)² = 1/(x + 1)². The quotient rule can be derived from the product rule by writing f/g as f·g^(−1)."
+        "When two functions are multiplied, their rates of change interact. The **product rule** says:",
+        "$$(f g)' = f'\\,g + f\\,g'$$",
+        "In words: differentiate the first factor and keep the second, then keep the first and differentiate the second, and add the two results.",
+        "Why the sum of two terms? Picture a rectangle with sides $f$ and $g$ that are both growing. Its area $fg$ increases because the $f$ side grows (adding a strip of area $f'g$) and because the $g$ side grows (adding a strip $fg'$). Multiplying the two rates together, $f'g'$, would describe only the tiny corner piece, which vanishes in the limit.",
+        "**Example:** for $y = x^2 \\sin x$, let $f = x^2$ and $g = \\sin x$. Then $y' = 2x \\sin x + x^2 \\cos x$. You can check the product rule on something simple: $x \\cdot x = x^2$ should have derivative $2x$, and the rule gives $1 \\cdot x + x \\cdot 1 = 2x$.",
+        "For a quotient, the **quotient rule** is:",
+        "$$\\left(\\frac{f}{g}\\right)' = \\frac{f'\\,g - f\\,g'}{g^2}$$",
+        "The order of the top matters because of the minus sign. A common memory aid is *“low d-high minus high d-low, over the square of what's below”*. For example:",
+        "$$\\frac{d}{dx}\\,\\frac{x}{x + 1} = \\frac{1 \\cdot (x + 1) - x \\cdot 1}{(x + 1)^2} = \\frac{1}{(x + 1)^2}$$",
+        "The quotient rule can be derived from the product rule by writing $\\frac{f}{g}$ as $f \\cdot g^{-1}$."
       ],
       "quiz_bank": [
-        {"concept": "product-rule", "prompt": "What is the derivative of x²·sin x?", "correct_answer": "2x·sin x + x²·cos x", "distractors": [
-          {"text": "2x·cos x", "misconception": "You multiplied the two derivatives. The derivative of a product isn't the product of the derivatives."},
-          {"text": "2x·sin x", "misconception": "You differentiated only the first factor. Each factor needs its turn being differentiated."},
-          {"text": "2x·sin x − x²·cos x", "misconception": "The product rule adds its two terms. The minus sign belongs to the quotient rule."}],
+        {
+          "concept": "product-rule",
+          "prompt": "What is the derivative of x²·sin x?",
+          "correct_answer": "2x·sin x + x²·cos x",
+          "distractors": [
+            {
+              "text": "2x·cos x",
+              "misconception": "You multiplied the two derivatives. The derivative of a product isn't the product of the derivatives."
+            },
+            {
+              "text": "2x·sin x",
+              "misconception": "You differentiated only the first factor. Each factor needs its turn being differentiated."
+            },
+            {
+              "text": "2x·sin x − x²·cos x",
+              "misconception": "The product rule adds its two terms. The minus sign belongs to the quotient rule."
+            }
+          ],
           "explanation": "(fg)' = f'g + fg' with f = x², g = sin x gives 2x·sin x + x²·cos x.",
-          "hint": "Say the product rule in words: differentiate one factor while keeping the other, then swap. How are the two results combined?"},
-        {"concept": "product-rule", "prompt": "In the growing-rectangle picture, why isn't (fg)' equal to f'·g'?", "correct_answer": "f'·g' is only the tiny corner piece, which vanishes in the limit", "distractors": [
-          {"text": "Because f'·g' is always zero", "misconception": "f'·g' is usually not zero as a function. The point is about which pieces of new area matter as the change shrinks."},
-          {"text": "Because rectangles can't model functions", "misconception": "The rectangle is exactly the model used: sides f and g, area f·g."},
-          {"text": "Because the sides grow at the same rate", "misconception": "The sides can grow at different rates; the argument doesn't depend on that."}],
+          "hint": "Say the product rule in words: differentiate one factor while keeping the other, then swap. How are the two results combined?"
+        },
+        {
+          "concept": "product-rule",
+          "prompt": "In the growing-rectangle picture, why isn't (fg)' equal to f'·g'?",
+          "correct_answer": "f'·g' is only the tiny corner piece, which vanishes in the limit",
+          "distractors": [
+            {
+              "text": "Because f'·g' is always zero",
+              "misconception": "f'·g' is usually not zero as a function. The point is about which pieces of new area matter as the change shrinks."
+            },
+            {
+              "text": "Because rectangles can't model functions",
+              "misconception": "The rectangle is exactly the model used: sides f and g, area f·g."
+            },
+            {
+              "text": "Because the sides grow at the same rate",
+              "misconception": "The sides can grow at different rates; the argument doesn't depend on that."
+            }
+          ],
           "explanation": "The area grows by two strips, f'·g and f·g'. The corner f'·g' is a product of two small changes and disappears in the limit.",
-          "hint": "When both sides grow a little, how many pieces of new area appear, and which one is tiny?"},
-        {"concept": "quotient-rule", "prompt": "What is the derivative of x/(x + 1)?", "correct_answer": "1/(x + 1)²", "distractors": [
-          {"text": "1", "misconception": "You divided the derivative of the top by the derivative of the bottom. Quotients need the quotient rule."},
-          {"text": "−1/(x + 1)²", "misconception": "The order of the numerator terms matters: low d-high minus high d-low. Check which term comes first."},
-          {"text": "(2x + 1)/(x + 1)²", "misconception": "You added the two terms on top. The quotient rule subtracts f·g' from f'·g."}],
+          "hint": "When both sides grow a little, how many pieces of new area appear, and which one is tiny?"
+        },
+        {
+          "concept": "quotient-rule",
+          "prompt": "What is the derivative of x/(x + 1)?",
+          "correct_answer": "1/(x + 1)²",
+          "distractors": [
+            {
+              "text": "1",
+              "misconception": "You divided the derivative of the top by the derivative of the bottom. Quotients need the quotient rule."
+            },
+            {
+              "text": "−1/(x + 1)²",
+              "misconception": "The order of the numerator terms matters: low d-high minus high d-low. Check which term comes first."
+            },
+            {
+              "text": "(2x + 1)/(x + 1)²",
+              "misconception": "You added the two terms on top. The quotient rule subtracts f·g' from f'·g."
+            }
+          ],
           "explanation": "[1·(x + 1) − x·1]/(x + 1)² = 1/(x + 1)².",
-          "hint": "Use “low d-high minus high d-low, over low squared”. Which function is “low” here?"},
-        {"concept": "quotient-rule", "prompt": "Which is the quotient rule for (f/g)'?", "correct_answer": "(f'·g − f·g') / g²", "distractors": [
-          {"text": "(f·g' − f'·g) / g²", "misconception": "The terms on top are in the wrong order, which flips the sign of the answer."},
-          {"text": "f' / g'", "misconception": "Dividing derivatives doesn't work, just as multiplying them doesn't work for products."},
-          {"text": "(f'·g + f·g') / g²", "misconception": "The top is a difference, not a sum. Compare with the product rule to see where the minus comes from."}],
+          "hint": "Use “low d-high minus high d-low, over low squared”. Which function is “low” here?"
+        },
+        {
+          "concept": "quotient-rule",
+          "prompt": "Which is the quotient rule for (f/g)'?",
+          "correct_answer": "(f'·g − f·g') / g²",
+          "distractors": [
+            {
+              "text": "(f·g' − f'·g) / g²",
+              "misconception": "The terms on top are in the wrong order, which flips the sign of the answer."
+            },
+            {
+              "text": "f' / g'",
+              "misconception": "Dividing derivatives doesn't work, just as multiplying them doesn't work for products."
+            },
+            {
+              "text": "(f'·g + f·g') / g²",
+              "misconception": "The top is a difference, not a sum. Compare with the product rule to see where the minus comes from."
+            }
+          ],
           "explanation": "Low d-high (g·f') minus high d-low (f·g'), over low squared (g²).",
-          "hint": "Recall the memory aid in the last paragraph. Which part is written first?"}
+          "hint": "Recall the memory aid in the last paragraph. Which part is written first?"
+        }
       ]
     },
     {
       "chapter": "Chapter 2: Differentiation Rules",
       "title": "Derivatives of Trigonometric Functions",
       "paragraphs": [
-        "Sine and cosine describe anything that repeats: tides, sound waves, alternating current. Their derivatives turn out to be beautifully simple: the derivative of sin x is cos x, and the derivative of cos x is −sin x. These results assume x is measured in radians.",
-        "Both facts come from the limit definition together with one special limit: lim(h→0) sin(h)/h = 1. You can see it on a calculator: sin(0.01)/0.01 ≈ 0.99998. Geometrically, for a tiny angle h, the arc of the unit circle and the vertical line of height sin h are almost the same length. The companion limit lim(h→0) (cos h − 1)/h = 0 is used as well.",
-        "The graphs confirm the result. At x = 0, sin x is climbing as steeply as it ever does, with slope 1, and cos 0 = 1. At x = π/2, sin x reaches its peak and is momentarily flat, and cos(π/2) = 0. When sin x is falling, cos x is negative. The derivative of cos x picks up a minus sign because cosine starts at its peak and falls first.",
-        "With the quotient rule we can get the rest. Since tan x = sin x / cos x, its derivative is (cos x·cos x − sin x·(−sin x)) / cos² x = 1/cos² x = sec² x. Differentiating sine four times brings you back where you started: sin → cos → −sin → −cos → sin."
+        "Sine and cosine describe anything that repeats: tides, sound waves, alternating current. Their derivatives turn out to be beautifully simple:",
+        "$$\\frac{d}{dx}\\sin x = \\cos x \\qquad \\frac{d}{dx}\\cos x = -\\sin x$$",
+        "These results assume $x$ is measured in **radians**.",
+        "Both facts come from the limit definition together with one special limit:",
+        "$$\\lim_{h \\to 0} \\frac{\\sin h}{h} = 1$$",
+        "You can see it on a calculator: $\\frac{\\sin(0.01)}{0.01} \\approx 0.99998$. Geometrically, for a tiny angle $h$, the arc of the unit circle and the vertical line of height $\\sin h$ are almost the same length. The companion limit $\\lim_{h \\to 0} \\frac{\\cos h - 1}{h} = 0$ is used as well.",
+        "The graphs confirm the result:",
+        "- At $x = 0$, $\\sin x$ is climbing as steeply as it ever does, with slope 1, and $\\cos 0 = 1$.\n- At $x = \\frac{\\pi}{2}$, $\\sin x$ reaches its peak and is momentarily flat, and $\\cos\\frac{\\pi}{2} = 0$.\n- When $\\sin x$ is falling, $\\cos x$ is negative.\n- The derivative of $\\cos x$ picks up a minus sign because cosine starts at its peak and falls first.",
+        "With the quotient rule we can get the rest. Since $\\tan x = \\frac{\\sin x}{\\cos x}$:",
+        "$$\\frac{d}{dx}\\tan x = \\frac{\\cos x \\cdot \\cos x - \\sin x \\cdot (-\\sin x)}{\\cos^2 x} = \\frac{1}{\\cos^2 x} = \\sec^2 x$$",
+        "Differentiating sine four times brings you back where you started: $\\sin \\to \\cos \\to -\\sin \\to -\\cos \\to \\sin$."
       ],
       "quiz_bank": [
-        {"concept": "trig-derivatives", "prompt": "What is the derivative of cos x?", "correct_answer": "−sin x", "distractors": [
-          {"text": "sin x", "misconception": "Close, but cosine starts at its peak and falls first, so its slope is negative there. There's a minus sign."},
-          {"text": "−cos x", "misconception": "That's the second derivative of cos x. One derivative turns cosine into a sine."},
-          {"text": "cos x", "misconception": "Cosine isn't its own derivative. At x = 0 cos x is flat (slope 0), but cos 0 = 1."}],
+        {
+          "concept": "trig-derivatives",
+          "prompt": "What is the derivative of cos x?",
+          "correct_answer": "−sin x",
+          "distractors": [
+            {
+              "text": "sin x",
+              "misconception": "Close, but cosine starts at its peak and falls first, so its slope is negative there. There's a minus sign."
+            },
+            {
+              "text": "−cos x",
+              "misconception": "That's the second derivative of cos x. One derivative turns cosine into a sine."
+            },
+            {
+              "text": "cos x",
+              "misconception": "Cosine isn't its own derivative. At x = 0 cos x is flat (slope 0), but cos 0 = 1."
+            }
+          ],
           "explanation": "d/dx cos x = −sin x. At x = 0 cosine is at its peak, so its slope there is 0 = −sin 0.",
-          "hint": "Picture the cosine graph at x = 0 and just after. Is it rising or falling?"},
-        {"concept": "limit", "prompt": "Which special limit underlies the derivative of sin x?", "correct_answer": "lim(h→0) sin(h)/h = 1", "distractors": [
-          {"text": "lim(h→0) sin(h)/h = 0", "misconception": "Both sin h and h go to 0, but their ratio approaches 1. Try sin(0.01)/0.01 on a calculator."},
-          {"text": "lim(h→0) sin(h) = 1", "misconception": "sin h approaches sin 0 = 0, not 1. The limit that matters is the ratio sin(h)/h."},
-          {"text": "lim(h→0) h/sin(h) = 0", "misconception": "This ratio approaches 1 as well, since it's the reciprocal of a ratio approaching 1."}],
+          "hint": "Picture the cosine graph at x = 0 and just after. Is it rising or falling?"
+        },
+        {
+          "concept": "limit",
+          "prompt": "Which special limit underlies the derivative of sin x?",
+          "correct_answer": "lim(h→0) sin(h)/h = 1",
+          "distractors": [
+            {
+              "text": "lim(h→0) sin(h)/h = 0",
+              "misconception": "Both sin h and h go to 0, but their ratio approaches 1. Try sin(0.01)/0.01 on a calculator."
+            },
+            {
+              "text": "lim(h→0) sin(h) = 1",
+              "misconception": "sin h approaches sin 0 = 0, not 1. The limit that matters is the ratio sin(h)/h."
+            },
+            {
+              "text": "lim(h→0) h/sin(h) = 0",
+              "misconception": "This ratio approaches 1 as well, since it's the reciprocal of a ratio approaching 1."
+            }
+          ],
           "explanation": "sin(h)/h → 1 as h → 0 (in radians); for tiny angles the arc and sin h are almost equal.",
-          "hint": "The text gives a calculator check, sin(0.01)/0.01. What is that close to?"},
-        {"concept": "trig-derivatives", "prompt": "At x = π/2, the slope of y = sin x is…", "correct_answer": "0, because sin x is at its peak", "distractors": [
-          {"text": "1, because sin(π/2) = 1", "misconception": "That's the height of the graph, not its slope. The slope is given by the derivative, cos x."},
-          {"text": "−1", "misconception": "The slope reaches −1 at x = π, where sine is falling fastest. At π/2 it's momentarily flat."},
-          {"text": "π/2", "misconception": "The slope at a point isn't the x-coordinate. Evaluate the derivative there instead."}],
+          "hint": "The text gives a calculator check, sin(0.01)/0.01. What is that close to?"
+        },
+        {
+          "concept": "trig-derivatives",
+          "prompt": "At x = π/2, the slope of y = sin x is…",
+          "correct_answer": "0, because sin x is at its peak",
+          "distractors": [
+            {
+              "text": "1, because sin(π/2) = 1",
+              "misconception": "That's the height of the graph, not its slope. The slope is given by the derivative, cos x."
+            },
+            {
+              "text": "−1",
+              "misconception": "The slope reaches −1 at x = π, where sine is falling fastest. At π/2 it's momentarily flat."
+            },
+            {
+              "text": "π/2",
+              "misconception": "The slope at a point isn't the x-coordinate. Evaluate the derivative there instead."
+            }
+          ],
           "explanation": "The slope is cos(π/2) = 0: sine is at its maximum and momentarily flat.",
-          "hint": "Which function gives the slope of sin x, and what is its value at π/2?"},
-        {"concept": "trig-derivatives", "prompt": "Which rule is used to find the derivative of tan x from sin x and cos x?", "correct_answer": "The quotient rule", "distractors": [
-          {"text": "The power rule", "misconception": "tan x isn't a power of x; it's a ratio of two functions."},
-          {"text": "The product rule alone, applied to sin x·cos x", "misconception": "tan x is sin x divided by cos x, not multiplied."},
-          {"text": "The sum rule", "misconception": "tan x isn't a sum of sin x and cos x. Look at how tan x is written in terms of them."}],
+          "hint": "Which function gives the slope of sin x, and what is its value at π/2?"
+        },
+        {
+          "concept": "trig-derivatives",
+          "prompt": "Which rule is used to find the derivative of tan x from sin x and cos x?",
+          "correct_answer": "The quotient rule",
+          "distractors": [
+            {
+              "text": "The power rule",
+              "misconception": "tan x isn't a power of x; it's a ratio of two functions."
+            },
+            {
+              "text": "The product rule alone, applied to sin x·cos x",
+              "misconception": "tan x is sin x divided by cos x, not multiplied."
+            },
+            {
+              "text": "The sum rule",
+              "misconception": "tan x isn't a sum of sin x and cos x. Look at how tan x is written in terms of them."
+            }
+          ],
           "explanation": "tan x = sin x / cos x, a quotient, so the quotient rule gives sec² x.",
-          "hint": "How is tan x written in terms of sin x and cos x?"}
+          "hint": "How is tan x written in terms of sin x and cos x?"
+        }
       ]
     },
     {
       "chapter": "Chapter 3: Composite and Implicit Functions",
       "title": "The Chain Rule",
       "paragraphs": [
-        "Many functions are built by feeding one function into another. In h(x) = (3x + 1)⁵, the inner function g(x) = 3x + 1 is computed first, and its output is fed into the outer function f(u) = u⁵. We write h = f(g(x)), a composition. Recognising the inner and outer layers is the first step in differentiating such functions.",
-        "The chain rule says the derivative of f(g(x)) is f'(g(x))·g'(x): differentiate the outer function, leaving the inner function inside it untouched, then multiply by the derivative of the inner function. In Leibniz notation, if y depends on u and u depends on x, then dy/dx = (dy/du)·(du/dx), which looks like fractions cancelling, and that is a good way to remember it.",
-        "Think of gears. If gear A turns 3 times for each turn of gear B, and B turns 5 times for each turn of gear C, then A turns 15 times for each turn of C. Rates of change through a chain of dependencies multiply. That's all the chain rule says.",
-        "Back to h(x) = (3x + 1)⁵. The outer derivative is 5u⁴, evaluated at u = 3x + 1, giving 5(3x + 1)⁴. The inner derivative is 3. So h'(x) = 15(3x + 1)⁴. The most common mistake is forgetting that final factor, the derivative of the inside. Another example: d/dx sin(x²) = cos(x²)·2x.",
-        "Chains can be longer than two links. For sin²(4x) = [sin(4x)]², work from the outside in: the square gives 2 sin(4x), the sine gives cos(4x), and the 4x gives 4. Multiply them: 8 sin(4x) cos(4x). The chain rule is the single most used rule in calculus, because nearly every interesting function is a composition."
+        "Many functions are built by feeding one function into another. In $h(x) = (3x + 1)^5$, the inner function $g(x) = 3x + 1$ is computed first, and its output is fed into the outer function $f(u) = u^5$. We write $h = f(g(x))$, a **composition**. Recognising the inner and outer layers is the first step in differentiating such functions.",
+        "The **chain rule** says:",
+        "$$\\frac{d}{dx}\\, f(g(x)) = f'(g(x)) \\cdot g'(x)$$",
+        "Differentiate the outer function, leaving the inner function inside it untouched, then multiply by the derivative of the inner function. In Leibniz notation, if $y$ depends on $u$ and $u$ depends on $x$:",
+        "$$\\frac{dy}{dx} = \\frac{dy}{du} \\cdot \\frac{du}{dx}$$",
+        "It looks like fractions cancelling, and that is a good way to remember it.",
+        "> **Think of gears.** If gear A turns 3 times for each turn of gear B, and B turns 5 times for each turn of gear C, then A turns 15 times for each turn of C. Rates of change through a chain of dependencies multiply. That's all the chain rule says.",
+        "Back to $h(x) = (3x + 1)^5$:",
+        "1. The outer derivative is $5u^4$, evaluated at $u = 3x + 1$, giving $5(3x + 1)^4$.\n2. The inner derivative is $3$.\n3. Multiply: $h'(x) = 15(3x + 1)^4$.",
+        "The most common mistake is forgetting that final factor, the derivative of the inside. Another example: $\\frac{d}{dx}\\sin(x^2) = \\cos(x^2) \\cdot 2x$.",
+        "Chains can be longer than two links. For $\\sin^2(4x) = \\left[\\sin(4x)\\right]^2$, work from the outside in: the square gives $2\\sin(4x)$, the sine gives $\\cos(4x)$, and the $4x$ gives $4$. Multiply them:",
+        "$$\\frac{d}{dx}\\sin^2(4x) = 8\\sin(4x)\\cos(4x)$$",
+        "The chain rule is the single most used rule in calculus, because nearly every interesting function is a composition."
       ],
       "quiz_bank": [
-        {"concept": "chain-rule", "prompt": "What is the derivative of (3x + 1)⁵?", "correct_answer": "15(3x + 1)⁴", "distractors": [
-          {"text": "5(3x + 1)⁴", "misconception": "You differentiated the outer layer but forgot to multiply by the derivative of the inner function, 3x + 1."},
-          {"text": "5(3)⁴", "misconception": "You replaced the inner function with its derivative. Keep the inside untouched in the outer derivative, then multiply."},
-          {"text": "15x⁴", "misconception": "The inner function 3x + 1 must stay inside the outer derivative; it doesn't become x."}],
+        {
+          "concept": "chain-rule",
+          "prompt": "What is the derivative of (3x + 1)⁵?",
+          "correct_answer": "15(3x + 1)⁴",
+          "distractors": [
+            {
+              "text": "5(3x + 1)⁴",
+              "misconception": "You differentiated the outer layer but forgot to multiply by the derivative of the inner function, 3x + 1."
+            },
+            {
+              "text": "5(3)⁴",
+              "misconception": "You replaced the inner function with its derivative. Keep the inside untouched in the outer derivative, then multiply."
+            },
+            {
+              "text": "15x⁴",
+              "misconception": "The inner function 3x + 1 must stay inside the outer derivative; it doesn't become x."
+            }
+          ],
           "explanation": "Outer derivative 5(3x + 1)⁴ times inner derivative 3 gives 15(3x + 1)⁴.",
-          "hint": "Identify the inner function. After differentiating the outer layer, what's the last step?"},
-        {"concept": "composition", "prompt": "In h(x) = sin(x²), which is the inner function?", "correct_answer": "x²", "distractors": [
-          {"text": "sin u", "misconception": "Sine is applied last, so it's the outer function. The inner function is computed first."},
-          {"text": "sin(x²)", "misconception": "That's the whole composition. Split it into the part computed first and the part applied to its output."},
-          {"text": "2x", "misconception": "2x is the derivative of the inner function, not the inner function itself."}],
+          "hint": "Identify the inner function. After differentiating the outer layer, what's the last step?"
+        },
+        {
+          "concept": "composition",
+          "prompt": "In h(x) = sin(x²), which is the inner function?",
+          "correct_answer": "x²",
+          "distractors": [
+            {
+              "text": "sin u",
+              "misconception": "Sine is applied last, so it's the outer function. The inner function is computed first."
+            },
+            {
+              "text": "sin(x²)",
+              "misconception": "That's the whole composition. Split it into the part computed first and the part applied to its output."
+            },
+            {
+              "text": "2x",
+              "misconception": "2x is the derivative of the inner function, not the inner function itself."
+            }
+          ],
           "explanation": "To evaluate sin(x²) you first square x, then take the sine, so x² is the inner function.",
-          "hint": "If you evaluated sin(x²) on a calculator, which operation would you do first?"},
-        {"concept": "chain-rule", "prompt": "What is the derivative of sin(x²)?", "correct_answer": "2x·cos(x²)", "distractors": [
-          {"text": "cos(x²)", "misconception": "That's only the outer derivative. Multiply by the derivative of the inside, x²."},
-          {"text": "cos(2x)", "misconception": "Don't differentiate inside the outer function. The outer derivative keeps x² inside, then you multiply by 2x."},
-          {"text": "2x·sin(x²)", "misconception": "The outer function sin must be differentiated too, which turns it into cos."}],
+          "hint": "If you evaluated sin(x²) on a calculator, which operation would you do first?"
+        },
+        {
+          "concept": "chain-rule",
+          "prompt": "What is the derivative of sin(x²)?",
+          "correct_answer": "2x·cos(x²)",
+          "distractors": [
+            {
+              "text": "cos(x²)",
+              "misconception": "That's only the outer derivative. Multiply by the derivative of the inside, x²."
+            },
+            {
+              "text": "cos(2x)",
+              "misconception": "Don't differentiate inside the outer function. The outer derivative keeps x² inside, then you multiply by 2x."
+            },
+            {
+              "text": "2x·sin(x²)",
+              "misconception": "The outer function sin must be differentiated too, which turns it into cos."
+            }
+          ],
           "explanation": "Outer derivative cos(x²), inner derivative 2x, multiplied: 2x·cos(x²).",
-          "hint": "Apply the rule in two steps: outer derivative with the inside left alone, then multiply by…?"},
-        {"concept": "chain-rule", "prompt": "Gear A turns 3 times per turn of gear B, and B turns 5 times per turn of C. How do these rates combine, and why does it matter?", "correct_answer": "They multiply to 15, just as dy/dx = (dy/du)·(du/dx)", "distractors": [
-          {"text": "They add to 8, as in the sum rule", "misconception": "Rates through a chain of dependencies multiply, they don't add. Count turns of A for one turn of C."},
-          {"text": "They divide to 3/5", "misconception": "Each turn of C causes 5 turns of B, and each of those causes 3 turns of A. That's multiplication."},
-          {"text": "Only the last rate, 5, matters", "misconception": "Every link in the chain contributes. Leaving one out is exactly the classic chain-rule mistake."}],
+          "hint": "Apply the rule in two steps: outer derivative with the inside left alone, then multiply by…?"
+        },
+        {
+          "concept": "chain-rule",
+          "prompt": "Gear A turns 3 times per turn of gear B, and B turns 5 times per turn of C. How do these rates combine, and why does it matter?",
+          "correct_answer": "They multiply to 15, just as dy/dx = (dy/du)·(du/dx)",
+          "distractors": [
+            {
+              "text": "They add to 8, as in the sum rule",
+              "misconception": "Rates through a chain of dependencies multiply, they don't add. Count turns of A for one turn of C."
+            },
+            {
+              "text": "They divide to 3/5",
+              "misconception": "Each turn of C causes 5 turns of B, and each of those causes 3 turns of A. That's multiplication."
+            },
+            {
+              "text": "Only the last rate, 5, matters",
+              "misconception": "Every link in the chain contributes. Leaving one out is exactly the classic chain-rule mistake."
+            }
+          ],
           "explanation": "Rates along a chain multiply: 3 × 5 = 15. The chain rule multiplies outer and inner rates the same way.",
-          "hint": "For one turn of C, how many times does B turn, and how many times does A turn for each of those?"}
+          "hint": "For one turn of C, how many times does B turn, and how many times does A turn for each of those?"
+        }
       ]
     },
     {
       "chapter": "Chapter 3: Composite and Implicit Functions",
       "title": "Implicit Differentiation",
       "paragraphs": [
-        "Not every curve is given as y = f(x). The circle x² + y² = 25 links x and y in a single equation, and solving for y gives two separate functions, y = ±√(25 − x²). Implicit differentiation finds dy/dx without solving for y at all.",
-        "The method is to differentiate both sides of the equation with respect to x, treating y as an unknown function of x. Terms in x differentiate as usual. Every term involving y needs the chain rule, so it picks up a factor of dy/dx. For example, d/dx(y²) = 2y·(dy/dx), not just 2y.",
-        "For the circle: d/dx(x²) + d/dx(y²) = d/dx(25) gives 2x + 2y·(dy/dx) = 0. Solving, dy/dx = −x/y. At the point (3, 4) the slope is −3/4. Notice the answer involves both x and y, which is normal for implicit derivatives: the slope depends on which point of the curve you're at.",
-        "Products of x and y need the product rule as well. Differentiating xy = 6 gives 1·y + x·(dy/dx) = 0, so dy/dx = −y/x. The general recipe is: differentiate every term, attach dy/dx wherever you differentiate a y, collect the dy/dx terms on one side, and factor it out."
+        "Not every curve is given as $y = f(x)$. The circle $x^2 + y^2 = 25$ links $x$ and $y$ in a single equation, and solving for $y$ gives two separate functions, $y = \\pm\\sqrt{25 - x^2}$. **Implicit differentiation** finds $\\frac{dy}{dx}$ without solving for $y$ at all.",
+        "The method is to differentiate both sides of the equation with respect to $x$, treating $y$ as an unknown function of $x$. Terms in $x$ differentiate as usual. Every term involving $y$ needs the chain rule, so it picks up a factor of $\\frac{dy}{dx}$:",
+        "$$\\frac{d}{dx}\\left(y^2\\right) = 2y\\,\\frac{dy}{dx} \\qquad \\text{not just } 2y$$",
+        "For the circle, differentiating both sides gives:",
+        "$$2x + 2y\\,\\frac{dy}{dx} = 0 \\quad\\Rightarrow\\quad \\frac{dy}{dx} = -\\frac{x}{y}$$",
+        "At the point $(3, 4)$ the slope is $-\\frac{3}{4}$. Notice the answer involves both $x$ and $y$, which is normal for implicit derivatives: the slope depends on which point of the curve you're at.",
+        "Products of $x$ and $y$ need the product rule as well. Differentiating $xy = 6$ gives $1 \\cdot y + x\\,\\frac{dy}{dx} = 0$, so $\\frac{dy}{dx} = -\\frac{y}{x}$.",
+        "The general recipe:",
+        "1. Differentiate every term with respect to $x$.\n2. Attach $\\frac{dy}{dx}$ wherever you differentiate a $y$.\n3. Collect the $\\frac{dy}{dx}$ terms on one side.\n4. Factor it out and solve."
       ],
       "quiz_bank": [
-        {"concept": "implicit-differentiation", "prompt": "Differentiating with respect to x, what is d/dx(y²)?", "correct_answer": "2y·(dy/dx)", "distractors": [
-          {"text": "2y", "misconception": "y is a function of x, so the chain rule applies: you need to multiply by the derivative of the inside, dy/dx."},
-          {"text": "0", "misconception": "y isn't a constant; it changes as x changes along the curve."},
-          {"text": "2x", "misconception": "You've differentiated as if the variable were x. The term is y², so it becomes 2y times something."}],
+        {
+          "concept": "implicit-differentiation",
+          "prompt": "Differentiating with respect to x, what is d/dx(y²)?",
+          "correct_answer": "2y·(dy/dx)",
+          "distractors": [
+            {
+              "text": "2y",
+              "misconception": "y is a function of x, so the chain rule applies: you need to multiply by the derivative of the inside, dy/dx."
+            },
+            {
+              "text": "0",
+              "misconception": "y isn't a constant; it changes as x changes along the curve."
+            },
+            {
+              "text": "2x",
+              "misconception": "You've differentiated as if the variable were x. The term is y², so it becomes 2y times something."
+            }
+          ],
           "explanation": "By the chain rule, d/dx[y²] = 2y·dy/dx because y depends on x.",
-          "hint": "Treat y as an unknown function of x, like g(x). What is d/dx[g(x)²]?"},
-        {"concept": "implicit-differentiation", "prompt": "For the circle x² + y² = 25, what is dy/dx?", "correct_answer": "−x/y", "distractors": [
-          {"text": "−y/x", "misconception": "That's the slope for xy = constant. Redo the algebra: solve 2x + 2y·y' = 0 for y'."},
-          {"text": "x/y", "misconception": "Moving 2x to the other side makes it negative. Check the sign when you isolate dy/dx."},
-          {"text": "−2x", "misconception": "You've differentiated x² but not the y² term. Every y term contributes and carries a dy/dx."}],
+          "hint": "Treat y as an unknown function of x, like g(x). What is d/dx[g(x)²]?"
+        },
+        {
+          "concept": "implicit-differentiation",
+          "prompt": "For the circle x² + y² = 25, what is dy/dx?",
+          "correct_answer": "−x/y",
+          "distractors": [
+            {
+              "text": "−y/x",
+              "misconception": "That's the slope for xy = constant. Redo the algebra: solve 2x + 2y·y' = 0 for y'."
+            },
+            {
+              "text": "x/y",
+              "misconception": "Moving 2x to the other side makes it negative. Check the sign when you isolate dy/dx."
+            },
+            {
+              "text": "−2x",
+              "misconception": "You've differentiated x² but not the y² term. Every y term contributes and carries a dy/dx."
+            }
+          ],
           "explanation": "2x + 2y·dy/dx = 0, so dy/dx = −2x/(2y) = −x/y.",
-          "hint": "Differentiate both sides, then collect the dy/dx term on one side. What do you divide by?"},
-        {"concept": "chain-rule", "prompt": "Why does every y-term pick up a factor of dy/dx in implicit differentiation?", "correct_answer": "Because y is a function of x, so the chain rule applies", "distractors": [
-          {"text": "Because y is a constant", "misconception": "If y were constant its derivative would be 0. y varies with x along the curve."},
-          {"text": "It's a notational convention with no reason", "misconception": "It isn't a convention: it's the inner-derivative factor from the chain rule."},
-          {"text": "Because of the product rule", "misconception": "The product rule is only needed for terms like xy. The dy/dx factor itself comes from another rule."}],
+          "hint": "Differentiate both sides, then collect the dy/dx term on one side. What do you divide by?"
+        },
+        {
+          "concept": "chain-rule",
+          "prompt": "Why does every y-term pick up a factor of dy/dx in implicit differentiation?",
+          "correct_answer": "Because y is a function of x, so the chain rule applies",
+          "distractors": [
+            {
+              "text": "Because y is a constant",
+              "misconception": "If y were constant its derivative would be 0. y varies with x along the curve."
+            },
+            {
+              "text": "It's a notational convention with no reason",
+              "misconception": "It isn't a convention: it's the inner-derivative factor from the chain rule."
+            },
+            {
+              "text": "Because of the product rule",
+              "misconception": "The product rule is only needed for terms like xy. The dy/dx factor itself comes from another rule."
+            }
+          ],
           "explanation": "y = y(x) is an inner function, and the chain rule multiplies by its derivative dy/dx.",
-          "hint": "Which rule from the previous section multiplies by the derivative of an inner function?"},
-        {"concept": "product-rule", "prompt": "Differentiating xy = 6 with respect to x gives…", "correct_answer": "y + x·(dy/dx) = 0", "distractors": [
-          {"text": "1·(dy/dx) = 0", "misconception": "xy is a product of two functions of x. The product rule gives two terms."},
-          {"text": "y + x = 0", "misconception": "Differentiating the y factor needs a dy/dx, from the chain rule."},
-          {"text": "x·(dy/dx) = 6", "misconception": "The right side is a constant, whose derivative is 0, and the left side needs two product-rule terms."}],
+          "hint": "Which rule from the previous section multiplies by the derivative of an inner function?"
+        },
+        {
+          "concept": "product-rule",
+          "prompt": "Differentiating xy = 6 with respect to x gives…",
+          "correct_answer": "y + x·(dy/dx) = 0",
+          "distractors": [
+            {
+              "text": "1·(dy/dx) = 0",
+              "misconception": "xy is a product of two functions of x. The product rule gives two terms."
+            },
+            {
+              "text": "y + x = 0",
+              "misconception": "Differentiating the y factor needs a dy/dx, from the chain rule."
+            },
+            {
+              "text": "x·(dy/dx) = 6",
+              "misconception": "The right side is a constant, whose derivative is 0, and the left side needs two product-rule terms."
+            }
+          ],
           "explanation": "Product rule: (x)'y + x(y)' = 1·y + x·dy/dx, and the derivative of 6 is 0.",
-          "hint": "xy is a product. Apply the product rule, remembering what differentiating y produces."}
+          "hint": "xy is a product. Apply the product rule, remembering what differentiating y produces."
+        }
       ]
     }
   ]

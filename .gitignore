@@ -6,3 +6,4 @@ server/.venv/
 server/data/
 __pycache__/
 .pytest_cache/
+edukindle.conf

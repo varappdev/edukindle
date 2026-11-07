@@ -150,7 +150,9 @@ static void quiz_show(Quiz *q)
     g_free(count);
     gtk_box_pack_start(GTK_BOX(q->body), counter, FALSE, FALSE, 0);
 
-    char *prompt = ui_esc(json_str(qn, "prompt", ""));
+    /* The server sends Pango markup (maths, code, emphasis); plain text is the fallback. */
+    const char *pm = json_str(qn, "prompt_markup", NULL);
+    char *prompt = pm ? g_strdup(pm) : ui_esc(json_str(qn, "prompt", ""));
     gtk_box_pack_start(GTK_BOX(q->body),
                        ui_label_wrapped(prompt, UI_FONT_READ, UI_TEXT_PX + 2, FALSE, 0), FALSE,
                        FALSE, ui_px(10));
@@ -159,7 +161,10 @@ static void quiz_show(Quiz *q)
     int first_choice = -1;
     if (prior) {
         first_choice = json_int(prior, "chosen", -1);
-        char *hint = g_markup_printf_escaped("<b>Hint</b>  %s", json_str(prior, "hint", ""));
+        const char *hm = json_str(prior, "hint_markup", NULL);
+        char *hint_text = hm ? g_strdup(hm) : ui_esc(json_str(prior, "hint", ""));
+        char *hint = g_strdup_printf("<b>Hint</b>  %s", hint_text);
+        g_free(hint_text);
         int inner = ui_content_w() - 2 * ui_px(3 + 16);
         GtkWidget *hl = ui_label_wrapped(hint, UI_FONT_UI, UI_SMALL_PX + 2, FALSE, inner);
         g_free(hint);
@@ -169,11 +174,15 @@ static void quiz_show(Quiz *q)
     static const char letters[N_OPTIONS] = {'A', 'B', 'C', 'D'};
     int i = 0;
     memset(q->options, 0, sizeof q->options);
+    Json *markups = json_get(qn, "options_markup");
     json_each(opt, json_get(qn, "options")) {
         if (i >= N_OPTIONS)
             break;
-        char *m = g_markup_printf_escaped("<b>%c</b>   %s%s", letters[i], opt->str ? opt->str : "",
-                                          i == first_choice ? "   (your first answer)" : "");
+        Json *om = json_at(markups, i);
+        char *text = om && om->str ? g_strdup(om->str) : ui_esc(opt->str);
+        char *m = g_strdup_printf("<b>%c</b>   %s%s", letters[i], text,
+                                  i == first_choice ? "   (your first answer)" : "");
+        g_free(text);
         GtkWidget *b = ui_button(m, UI_BTN_NORMAL, quiz_option, q);
         g_free(m);
         gtk_misc_set_alignment(GTK_MISC(gtk_bin_get_child(GTK_BIN(b))), 0.0, 0.5);
@@ -342,81 +351,6 @@ static void results_next(GtkWidget *b, gpointer data)
     g_free(target);
 }
 
-static char *results_markup(Json *res)
-{
-    GString *m = g_string_new(NULL);
-    int n = 0;
-    json_each(r, json_get(res, "results")) {
-        gboolean ok = json_bool(r, "correct", FALSE);
-        gboolean hinted = json_bool(r, "hinted", FALSE);
-        const char *verdict = ok ? (hinted ? "Correct, with a hint" : "Correct")
-                                 : (json_bool(r, "can_retry", FALSE) ? "Not quite"
-                                                                     : "Not this time");
-        if (n++)
-            g_string_append(m, "\n\n");
-        char *s = g_markup_printf_escaped("<b>%s</b>\n<i>%s</i>\nYour answer: %s\n%s",
-                                          verdict, json_str(r, "prompt", ""),
-                                          json_str(r, "chosen_text", ""),
-                                          json_str(r, "feedback", ""));
-        g_string_append(m, s);
-        g_free(s);
-        const char *hint = json_str(r, "hint", NULL);
-        if (hint) {
-            s = g_markup_printf_escaped("\n<b>Hint:</b> %s", hint);
-            g_string_append(m, s);
-            g_free(s);
-        }
-        if (!ok && json_str(r, "answer_text", NULL)) {
-            s = g_markup_printf_escaped("\n<b>Answer:</b> %s. %s", json_str(r, "answer_text", ""),
-                                        json_str(r, "explanation", ""));
-            g_string_append(m, s);
-            g_free(s);
-        }
-    }
-
-    Json *mastery = json_get(res, "mastery");
-    if (json_len(mastery)) {
-        g_string_append(m, "\n\n<b>Mastery</b>");
-        json_each(c, mastery) {
-            char *s = g_markup_printf_escaped(
-                "\n\342\200\242 %s: %d%% to %d%%", json_str(c, "label", ""),
-                (int)(json_num(c, "before", 0) * 100 + 0.5),
-                (int)(json_num(c, "after", 0) * 100 + 0.5));
-            g_string_append(m, s);
-            g_free(s);
-        }
-    }
-
-    json_each(g, json_get(res, "gaps")) {
-        Json *roots = json_get(g, "root_causes");
-        if (!json_len(roots))
-            continue;
-        char *s = g_markup_printf_escaped("\n\n<b>Knowledge gap:</b> %s builds on ",
-                                          json_str(g, "label", ""));
-        g_string_append(m, s);
-        g_free(s);
-        int i = 0;
-        json_each(root, roots) {
-            s = g_markup_printf_escaped("%s%s (%s)", i++ ? ", " : "", json_str(root, "label", ""),
-                                        !g_strcmp0(json_str(root, "status", ""), "weak")
-                                            ? "weak"
-                                            : "not checked yet");
-            g_string_append(m, s);
-            g_free(s);
-        }
-        g_string_append_c(m, '.');
-    }
-
-    Json *next = json_get(res, "next");
-    if (!json_is_null(next)) {
-        char *s = g_markup_printf_escaped("\n\n<b>Curriculum Architect:</b> %s",
-                                          json_str(next, "reason", ""));
-        g_string_append(m, s);
-        g_free(s);
-    }
-    return g_string_free(m, FALSE);
-}
-
 GtkWidget *screen_results_new(Json *quiz, Json *result)
 {
     Results *r = g_new0(Results, 1);
@@ -453,9 +387,11 @@ GtkWidget *screen_results_new(Json *quiz, Json *result)
     GtkWidget *area = pager_new(UI_FONT_UI, UI_SMALL_PX + 4);
     r->pager = pager_of(area);
     pager_on_change(r->pager, results_page_changed, r);
-    char *markup = results_markup(result);
-    pager_set_text(r->pager, markup, TRUE);
-    g_free(markup);
+    Json *doc = json_get(result, "doc"); /* the page is composed by the server */
+    if (doc)
+        pager_set_doc(r->pager, doc);
+    else
+        pager_set_text(r->pager, APP_OLD_SERVER);
     app_set_pager(r->screen, r->pager);
     gtk_box_pack_start(GTK_BOX(r->screen), area, TRUE, TRUE, 0);
 

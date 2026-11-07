@@ -6,7 +6,7 @@ import io
 import pytest
 from fastapi.testclient import TestClient
 
-from edukindle import config, ingest, knowledge
+from edukindle import config, ingest, knowledge, richtext
 from edukindle.api import create_app
 
 SAMPLE = "calculus-i-derivatives"
@@ -40,14 +40,22 @@ def test_home_has_sample(client):
     assert home["continue"] is None
 
 
-def test_section_paragraphs_are_normalised(client):
+def test_section_has_text_and_rendered_doc(client):
     toc = client.get(f"/api/documents/{SAMPLE}").json()
     assert len(toc["sections"]) == 7
-    sec = client.get(f"/api/sections/{toc['sections'][5]['id']}").json()
+    sid = toc["sections"][5]["id"]
+    sec = client.get(f"/api/sections/{sid}", headers={"X-EK-Px": "42"}).json()
     assert sec["title"] == "The Chain Rule"
-    assert "\n\n\n" not in sec["text"] and len(sec["text"].split("\n\n")) == 5
+    paras = richtext.paragraphs(sec["text"])
+    blocks = sec["doc"]["blocks"]
+    assert {b["t"] for b in blocks} >= {"p", "math", "li", "note"}
+    assert all(0 <= b["para"] < len(paras) for b in blocks)
+    assert all("png" in b for b in blocks if b["t"] == "math")  # rendered at 42px
     assert {c["label"] for c in sec["concepts"]} == {"Function Composition", "Chain Rule"}
     assert client.get("/api/home").json()["continue"]["section_id"] == sec["id"]
+    # Without the Kindle's size header, maths falls back to markup only.
+    plain = client.get(f"/api/sections/{sid}").json()
+    assert all("png" not in b and b["m"] for b in plain["doc"]["blocks"] if b["t"] == "math")
 
 
 def test_quiz_hides_answers_and_grades(client):
@@ -55,7 +63,8 @@ def test_quiz_hides_answers_and_grades(client):
     quiz = client.post("/api/quiz", json={"section_id": sid}).json()
     assert len(quiz["questions"]) == 3
     for q in quiz["questions"]:
-        assert set(q) == {"id", "prompt", "options", "concept"}
+        assert set(q) == {"id", "prompt", "options", "concept", "prompt_markup",
+                          "options_markup"}  # nothing that gives the answer away
         assert len(q["options"]) == 4
 
     # All wrong first time -> hints, no answers revealed, retry offered.

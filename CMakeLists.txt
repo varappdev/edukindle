@@ -37,6 +37,7 @@ target_link_libraries(ekcore PUBLIC PkgConfig::GTK2)
 add_executable(edukindle
   src/main.c
   src/ui.c
+  src/screen_connect.c
   src/screen_library.c
   src/screen_reader.c
   src/screen_quiz.c

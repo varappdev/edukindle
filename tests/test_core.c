@@ -1,5 +1,6 @@
 /* Host tests for json.c and net.c. Run: build/host/test_core */
 
+#include <arpa/inet.h>
 #include <gio/gio.h>
 #include <string.h>
 
@@ -105,6 +106,74 @@ static void reset_got(void)
     json_free(got.json);
 }
 
+typedef struct {
+    guint16 port;
+    GPtrArray *found;
+} ScanJob;
+
+static gboolean quit_loop(gpointer data)
+{
+    (void)data;
+    g_main_loop_quit(loop);
+    return FALSE;
+}
+
+static gpointer scan_thread(gpointer data)
+{
+    ScanJob *job = data;
+    guint32 host = ntohl(inet_addr("127.0.0.1"));
+    job->found = net_scan_hosts(&host, 1, job->port, 1000);
+    g_idle_add(quit_loop, NULL);
+    return NULL;
+}
+
+static GPtrArray *scan_one(guint16 port)
+{
+    ScanJob job = {port, NULL};
+    GThread *t = g_thread_new("scan", scan_thread, &job);
+    g_main_loop_run(loop);
+    g_thread_join(t);
+    return job.found;
+}
+
+static void free_found(GPtrArray *found)
+{
+    for (guint i = 0; i < found->len; i++)
+        g_free(g_ptr_array_index(found, i));
+    g_ptr_array_free(found, TRUE);
+}
+
+static void test_addresses(void)
+{
+    static const struct {
+        const char *in, *out;
+    } cases[] = {
+        {"192.168.43.20", "192.168.43.20:8080"},
+        {" 192.168.43.20:9000 ", "192.168.43.20:9000"},
+        {"http://10.0.0.5:8080/", "10.0.0.5:8080"},
+        {"laptop.local", "laptop.local:8080"},
+        {"1.2.3", NULL},
+        {"300.1.1.1", NULL},
+        {"1.2.3.4:", NULL},
+        {"1.2.3.4:0", NULL},
+        {"1.2.3.4:99999", NULL},
+        {"", NULL},
+        {"a b", NULL},
+        {":8080", NULL},
+    };
+    for (gsize i = 0; i < G_N_ELEMENTS(cases); i++) {
+        char *got_addr = net_normalise_server(cases[i].in);
+        if (g_strcmp0(got_addr, cases[i].out) != 0) {
+            g_printerr("FAIL address %s -> %s (want %s)\n", cases[i].in,
+                       got_addr ? got_addr : "NULL", cases[i].out ? cases[i].out : "NULL");
+            failures++;
+        }
+        g_free(got_addr);
+    }
+    net_init("not an address");
+    CHECK(!strcmp(net_server(), "127.0.0.1:8080")); /* bad input falls back */
+}
+
 static void set_flag(NetResponse *resp, gpointer data)
 {
     (void)resp;
@@ -146,6 +215,24 @@ static void test_net(void)
     CHECK(got.error && strstr(got.error, "no section 'x'"));
     reset_got();
 
+    /* Discovery: finds the EduKindle server, ignores other web servers and
+     * closed ports. Scans run on a thread while the loop serves requests. */
+    canned_reply = "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n"
+                   "{\"ok\":true,\"llm\":false}";
+    GPtrArray *found = scan_one(port);
+    CHECK(found->len == 1);
+    if (found->len == 1) {
+        char *want = g_strdup_printf("127.0.0.1:%u", port);
+        CHECK(!strcmp(g_ptr_array_index(found, 0), want));
+        g_free(want);
+    }
+    free_found(found);
+
+    canned_reply = "HTTP/1.1 404 Not Found\r\ncontent-type: text/html\r\n\r\n<h1>nope</h1>";
+    found = scan_one(port);
+    CHECK(found->len == 0); /* something listens, but it isn't EduKindle */
+    free_found(found);
+
     g_socket_service_stop(svc);
     g_socket_listener_close(G_SOCKET_LISTENER(svc));
     g_object_unref(svc);
@@ -175,6 +262,7 @@ static void test_net(void)
 int main(void)
 {
     test_json();
+    test_addresses();
     test_net();
     if (failures) {
         g_printerr("%d check(s) failed\n", failures);

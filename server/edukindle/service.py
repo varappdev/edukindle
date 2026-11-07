@@ -15,10 +15,11 @@ import asyncio
 import hashlib
 import json
 import logging
+import threading
 from importlib import resources
 from typing import Any, Awaitable, Callable
 
-from . import ingest, knowledge
+from . import ingest, knowledge, mathrender, richtext, views
 from .agents.curriculum import CurriculumArchitect, apply_concepts
 from .agents.educator import SocraticEducator
 from .config import Config
@@ -28,6 +29,8 @@ from .store import Store, now
 log = logging.getLogger("edukindle.service")
 
 EXPLAIN_MODES = ("summary", "simple", "paragraph", "concept")
+# Bump when explanation formatting changes so cached explanations regenerate.
+CACHE_VERSION = 2
 
 
 class NotFound(LookupError):
@@ -40,7 +43,10 @@ class BadRequest(ValueError):
 
 def _public_question(q: dict[str, Any]) -> dict[str, Any]:
     return {"id": q["id"], "prompt": q["prompt"], "options": q["options"],
-            "concept": q["concept"]}
+            "concept": q["concept"],
+            # Pango markup for the Kindle: inline maths, code and emphasis.
+            "prompt_markup": richtext.inline(q["prompt"]),
+            "options_markup": [richtext.inline(o) for o in q["options"]]}
 
 
 class EduKindle:
@@ -57,9 +63,10 @@ class EduKindle:
 
     async def startup(self) -> None:
         marker = self.cfg.data_dir / ".seeded"
-        if not marker.exists():
-            self._seed_samples()
-            marker.touch()
+        self._sync_samples(first_run=not marker.exists())
+        marker.touch()
+        # The first maths render loads fonts; do it before anyone is waiting.
+        threading.Thread(target=mathrender.warm_up, name="math-warm-up", daemon=True).start()
         for doc in self.store.documents.values():
             if not doc["concepts_ready"]:
                 self._spawn(f"map:{doc['id']}", lambda d=doc: self._map(d))
@@ -68,13 +75,25 @@ class EduKindle:
         for t in self._jobs.values():
             t.cancel()
 
-    def _seed_samples(self) -> None:
+    def _sync_samples(self, first_run: bool) -> None:
+        """Seed sample documents on first run; afterwards upgrade stored copies
+        in place (same ids, so learner progress carries over) when the bundled
+        sample has a newer version."""
         for res in resources.files("edukindle.sample").iterdir():
-            if res.name.endswith(".json"):
-                doc = load_sample(json.loads(res.read_text(encoding="utf-8")),
-                                  self.store.documents)
+            if not res.name.endswith(".json"):
+                continue
+            data = json.loads(res.read_text(encoding="utf-8"))
+            stored = next((d for d in self.store.documents.values()
+                           if d.get("source") == "sample" and d["title"] == data["title"]), None)
+            if stored is None and first_run:
+                doc = load_sample(data, self.store.documents)
                 self.store.save_document(doc)
                 log.info("seeded sample document %s", doc["id"])
+            elif stored and stored.get("version", 1) < data.get("version", 1):
+                doc = load_sample(data, self.store.documents, doc_id=stored["id"])
+                self.store.save_document(doc)
+                log.info("upgraded sample document %s to version %s", doc["id"],
+                         doc["version"])
 
     def _spawn(self, key: str, fn: Callable[[], Awaitable[Any]]) -> asyncio.Task:
         task = self._jobs.get(key)
@@ -196,7 +215,8 @@ class EduKindle:
 
     # -- reading -----------------------------------------------------------------
 
-    def open_section(self, section_id: str) -> dict[str, Any]:
+    def open_section(self, section_id: str, px: int | None = None,
+                     width: int | None = None) -> dict[str, Any]:
         doc, s = self._section(section_id)
         st = self.store.student
         rec = st["sections"].setdefault(section_id, {"passed": False, "best": None,
@@ -219,6 +239,7 @@ class EduKindle:
             "chapter": s["chapter"],
             "title": s["title"],
             "text": s["text"],
+            "doc": richtext.doc(s["text"], px, width),
             "status": self._section_status(section_id),
             "prev": {"id": prev["id"], "title": prev["title"]} if prev else None,
             "next": {"id": nxt["id"], "title": nxt["title"]} if nxt else None,
@@ -231,13 +252,14 @@ class EduKindle:
         }
 
     async def explain(self, section_id: str, mode: str, paragraph: int | None = None,
-                      concept_id: str | None = None) -> dict[str, Any]:
+                      concept_id: str | None = None, px: int | None = None,
+                      width: int | None = None) -> dict[str, Any]:
         if mode not in EXPLAIN_MODES:
             raise BadRequest(f"mode must be one of {', '.join(EXPLAIN_MODES)}")
         doc, s = self._section(section_id)
         para_text, concept, status = None, None, "unknown"
         if mode == "paragraph":
-            paras = s["text"].split("\n\n")
+            paras = richtext.paragraphs(s["text"])
             if paragraph is None or not 0 <= paragraph < len(paras):
                 raise BadRequest("paragraph index out of range")
             para_text = paras[paragraph]
@@ -248,18 +270,19 @@ class EduKindle:
             status = knowledge.status_of(self.store.student["concepts"].get(concept_id))
 
         key = "explain:" + hashlib.sha1(
-            f"{section_id}|{mode}|{paragraph}|{concept_id}|{status}|{self.llm.enabled}"
+            f"{section_id}|{mode}|{paragraph}|{concept_id}|{status}|{self.llm.enabled}|"
+            f"{doc.get('version', 1)}|{CACHE_VERSION}"
             .encode()).hexdigest()[:16]
         cached = self.store.cache_get(key)
-        if cached:
-            return {**cached, "cached": True}
-
-        async def run() -> dict[str, Any]:
-            out = await self.educator.explain(doc, s, mode, para_text, concept, status)
-            self.store.cache_put(key, out)
-            return out
-        out = await self._spawn(key, run)
-        return {**out, "cached": False}
+        if not cached:
+            async def run() -> dict[str, Any]:
+                out = await self.educator.explain(doc, s, mode, para_text, concept, status)
+                self.store.cache_put(key, out)
+                return out
+            out = await self._spawn(key, run)
+        else:
+            out = cached
+        return {**out, "doc": richtext.doc(out["body"], px, width), "cached": bool(cached)}
 
     # -- assessment ----------------------------------------------------------------
 
@@ -307,7 +330,8 @@ class EduKindle:
             "questions": [_public_question(q) for q in quiz["questions"]],
         }
 
-    def answer(self, quiz_id: str, answers: dict[str, int]) -> dict[str, Any]:
+    def answer(self, quiz_id: str, answers: dict[str, int],
+               px: int | None = None, width: int | None = None) -> dict[str, Any]:
         quiz = self.store.quizzes.get(quiz_id)
         if not quiz:
             raise NotFound(f"no quiz {quiz_id!r}")
@@ -347,7 +371,9 @@ class EduKindle:
         self._refresh_coach(doc, nxt)
 
         concepts = doc["concepts"]
-        return {
+        for r in results:
+            r["hint_markup"] = richtext.inline(r["hint"]) if r["hint"] else None
+        out = {
             "quiz_id": quiz_id,
             "section_id": s["id"],
             "score": quiz["first_score"],
@@ -366,6 +392,8 @@ class EduKindle:
             "gaps": gaps,
             "next": nxt,
         }
+        out["doc"] = views.results_doc(out, px, width)
+        return out
 
     def _refresh_coach(self, doc: dict[str, Any], nxt: dict[str, Any] | None) -> None:
         key = f"coach:{doc['id']}"
@@ -381,8 +409,12 @@ class EduKindle:
 
     # -- progress & graph ------------------------------------------------------------
 
-    def progress(self, doc_id: str) -> dict[str, Any]:
-        return self.architect.progress(self._doc(doc_id), self.store.student)
+    def progress(self, doc_id: str, px: int | None = None, width: int | None = None,
+                 with_doc: bool = False) -> dict[str, Any]:
+        prog = self.architect.progress(self._doc(doc_id), self.store.student)
+        if with_doc:
+            prog["doc"] = views.progress_doc(prog, px, width)
+        return prog
 
     def graph(self, doc_id: str) -> dict[str, Any]:
         doc = self._doc(doc_id)
@@ -391,10 +423,13 @@ class EduKindle:
         return view
 
 
-def load_sample(data: dict[str, Any], existing: dict[str, Any]) -> dict[str, Any]:
-    """Sample documents ship with hand-written concepts and a question bank."""
+def load_sample(data: dict[str, Any], existing: dict[str, Any],
+                doc_id: str | None = None) -> dict[str, Any]:
+    """Sample documents ship with hand-written concepts and a question bank.
+    Their paragraphs are Markdown chunks (see richtext)."""
     raw = [(s.get("chapter", ""), s["title"], s["paragraphs"]) for s in data["sections"]]
-    doc = ingest.build_document(data["title"], raw, "sample", existing)
+    doc = ingest.build_document(data["title"], raw, "sample", existing, doc_id=doc_id)
+    doc["version"] = data.get("version", 1)
     for s, src in zip(doc["sections"], data["sections"]):
         s["quiz_bank"] = src.get("quiz_bank", [])
     apply_concepts(doc, data["concepts"])

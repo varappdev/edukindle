@@ -3,6 +3,8 @@
 
 #include <gtk/gtk.h>
 
+#include "json.h"
+
 /*
  * E-ink widget kit. Everything is drawn flat in black and white with Cairo,
  * bypassing the GTK theme engine, so no gradients, bevels or hover effects can
@@ -18,7 +20,7 @@
 #define UI_SMALL_PX 30
 #define UI_TITLE_PX 50
 
-typedef enum { UI_FONT_UI, UI_FONT_READ } UiFace;
+typedef enum { UI_FONT_UI, UI_FONT_READ, UI_FONT_MONO } UiFace;
 
 void ui_init(int screen_w, int screen_h);
 int ui_px(double design_px);
@@ -87,20 +89,23 @@ int ui_list_page(UiList *l);
 /* Rows of `row_px` that fit after reserving `reserved_px` (design px). */
 int ui_rows_fitting(double reserved_px, double row_px);
 
-/* --- Pager: paginated text, the E-ink alternative to scrolling ------------ */
+/* --- Pager: paginated rich text, the E-ink alternative to scrolling ---------- */
 
 typedef struct Pager Pager;
 typedef void (*PagerFn)(Pager *p, gpointer data);
-typedef void (*PagerSelectFn)(Pager *p, int byte_index, gpointer data);
+typedef void (*PagerSelectFn)(Pager *p, int paragraph, gpointer data);
 
 GtkWidget *pager_new(UiFace face, double px);
 Pager *pager_of(GtkWidget *area);
 GtkWidget *pager_widget(Pager *p);
-void pager_set_text(Pager *p, const char *text, gboolean markup);
-/* Plain text as laid out (markup stripped). */
-const char *pager_text(Pager *p);
+/* Plain text; paragraphs are separated by blank lines. */
+void pager_set_text(Pager *p, const char *text);
+/* A server document: {"px": n, "blocks": [{"t": "p"|"h1"..|"li"|"note"|"code"|
+ * "math"|"hr", "m": markup, ...}]}. The pager copies what it needs. */
+void pager_set_doc(Pager *p, Json *doc);
 void pager_on_change(Pager *p, PagerFn fn, gpointer data);
-/* In select mode a tap reports a text position instead of turning the page. */
+/* In select mode a tap reports the tapped block's source paragraph instead of
+ * turning the page. */
 void pager_on_select(Pager *p, PagerSelectFn fn, gpointer data);
 void pager_set_select_mode(Pager *p, gboolean on);
 gboolean pager_next(Pager *p);

@@ -47,6 +47,13 @@ static void retry_home(GtkWidget *b, gpointer data)
     home_load(data);
 }
 
+static void change_server(GtkWidget *b, gpointer data)
+{
+    (void)b;
+    (void)data;
+    app_push(screen_connect_new(FALSE));
+}
+
 static void quit_clicked(GtkWidget *b, gpointer data)
 {
     (void)b;
@@ -68,8 +75,12 @@ static void home_loaded(NetResponse *resp, gpointer data)
             resp->error);
         gtk_box_pack_start(GTK_BOX(h->body), ui_message(msg), TRUE, TRUE, 0);
         g_free(msg);
-        GtkWidget *b = ui_button("Try again", UI_BTN_PRIMARY, retry_home, h);
-        gtk_box_pack_start(GTK_BOX(h->body), b, FALSE, FALSE, 0);
+        GtkWidget *row = ui_hbox_equal();
+        gtk_box_pack_start(GTK_BOX(row), ui_button("Change server", UI_BTN_NORMAL, change_server,
+                                                   NULL), TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(row), ui_button("Try again", UI_BTN_PRIMARY, retry_home, h),
+                           TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(h->body), row, FALSE, FALSE, 0);
         gtk_widget_show_all(h->body);
         return;
     }
@@ -151,6 +162,9 @@ GtkWidget *screen_home_new(void)
     GtkWidget *quit = ui_button("Exit", UI_BTN_NORMAL, quit_clicked, NULL);
     gtk_widget_set_size_request(quit, ui_px(170), ui_px(UI_TOUCH - 12));
     gtk_box_pack_end(GTK_BOX(right), quit, FALSE, FALSE, 0);
+    GtkWidget *server = ui_button("Server", UI_BTN_NORMAL, change_server, NULL);
+    gtk_widget_set_size_request(server, ui_px(190), ui_px(UI_TOUCH - 12));
+    gtk_box_pack_end(GTK_BOX(right), server, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(h->screen), header, FALSE, FALSE, 0);
 
     h->status = ui_label_wrapped("", UI_FONT_UI, UI_SMALL_PX, FALSE, 0);

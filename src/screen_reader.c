@@ -67,14 +67,11 @@ static void reader_set_selecting(Reader *r, gboolean on)
     reader_update_hint(r);
 }
 
-/* Paragraphs are separated by a blank line; count separators before the tap. */
-static void reader_paragraph_tapped(Pager *p, int index, gpointer data)
+/* The pager reports which source paragraph was tapped; the server explains it. */
+static void reader_paragraph_tapped(Pager *p, int para, gpointer data)
 {
+    (void)p;
     Reader *r = data;
-    const char *text = pager_text(p);
-    int para = 0;
-    for (const char *s = text; (s = strstr(s, "\n\n")) && s - text < index; s += 2)
-        para++;
     reader_set_selecting(r, FALSE);
     app_push(screen_explain_new(r->section_id, "paragraph", para, NULL, NULL));
 }
@@ -133,7 +130,11 @@ static void reader_loaded(NetResponse *resp, gpointer data)
     r->pager = pager_of(area);
     pager_on_change(r->pager, reader_page_changed, r);
     pager_on_select(r->pager, reader_paragraph_tapped, r);
-    pager_set_text(r->pager, json_str(j, "text", ""), FALSE);
+    Json *doc = json_get(j, "doc");
+    if (doc)
+        pager_set_doc(r->pager, doc);
+    else
+        pager_set_text(r->pager, json_str(j, "text", ""));
     app_set_pager(r->screen, r->pager);
     gtk_box_pack_start(GTK_BOX(r->body), area, TRUE, TRUE, 0);
     gtk_widget_show_all(r->body);
@@ -217,7 +218,11 @@ static void explain_loaded(NetResponse *resp, gpointer data)
     GtkWidget *area = pager_new(UI_FONT_READ, UI_TEXT_PX + 2);
     e->pager = pager_of(area);
     pager_on_change(e->pager, explain_page_changed, e);
-    pager_set_text(e->pager, json_str(resp->json, "body", ""), FALSE);
+    Json *doc = json_get(resp->json, "doc");
+    if (doc)
+        pager_set_doc(e->pager, doc);
+    else
+        pager_set_text(e->pager, json_str(resp->json, "body", ""));
     app_set_pager(e->screen, e->pager);
     gtk_box_pack_start(GTK_BOX(e->body), area, TRUE, TRUE, 0);
     gtk_widget_show_all(e->body);

@@ -192,6 +192,40 @@ static char *read_config_server(void)
     return server;
 }
 
+void app_save_server(const char *label)
+{
+    /* Rewrite just the server= line, keeping comments and anything else. */
+    char *contents = NULL;
+    GString *out = g_string_new(NULL);
+    gboolean replaced = FALSE;
+    if (g_file_get_contents(CONFIG_FILE, &contents, NULL, NULL)) {
+        char **lines = g_strsplit(contents, "\n", -1);
+        for (char **l = lines; *l; l++) {
+            if (!l[1] && !**l)
+                break; /* the empty string after the final newline */
+            char *trimmed = g_strstrip(g_strdup(*l));
+            if (g_str_has_prefix(trimmed, "server=")) {
+                if (!replaced)
+                    g_string_append_printf(out, "server=%s\n", label);
+                replaced = TRUE;
+            } else {
+                g_string_append_printf(out, "%s\n", *l);
+            }
+            g_free(trimmed);
+        }
+        g_strfreev(lines);
+        g_free(contents);
+    }
+    if (!replaced)
+        g_string_append_printf(out, "server=%s\n", label);
+    GError *err = NULL;
+    if (!g_file_set_contents(CONFIG_FILE, out->str, -1, &err)) {
+        g_warning("can't save %s: %s", CONFIG_FILE, err->message);
+        g_clear_error(&err);
+    }
+    g_string_free(out, TRUE);
+}
+
 static gboolean on_kindle(void)
 {
     return g_file_test("/usr/bin/lipc-get-prop", G_FILE_TEST_EXISTS);
@@ -233,6 +267,8 @@ int main(int argc, char *argv[])
         }
     }
     ui_init(win_w, win_h);
+    /* The server renders display maths at the reader's text size and width. */
+    net_set_display(ui_px(UI_TEXT_PX + 2), ui_content_w() - ui_px(12));
 
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(window), KINDLE_WINDOW_TITLE);
@@ -258,7 +294,7 @@ int main(int argc, char *argv[])
 
     gtk_widget_show(root);
     gtk_widget_show(stack_box);
-    app_push(screen_home_new());
+    app_push(screen_connect_new(TRUE)); /* goes straight to Home if the server answers */
     gtk_widget_show(window);
     gtk_main();
     return 0;

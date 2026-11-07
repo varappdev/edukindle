@@ -97,54 +97,14 @@ static void progress_loaded(NetResponse *resp, gpointer data)
     g_free(b);
     g_free(c);
 
-    GString *m = g_string_new(NULL);
-    char *s = g_markup_printf_escaped("<b>Curriculum Architect</b>\n%s", json_str(j, "coach", ""));
-    g_string_append(m, s);
-    g_free(s);
-
-    Json *weak = json_get(j, "weak");
-    if (json_len(weak)) {
-        g_string_append(m, "\n\n<b>Knowledge gaps</b>");
-        json_each(g, weak) {
-            s = g_markup_printf_escaped("\n\342\200\242 %s, %d%%", json_str(g, "label", ""),
-                                        pct(json_num(g, "mastery", 0)));
-            g_string_append(m, s);
-            g_free(s);
-            int i = 0;
-            json_each(root, json_get(g, "root_causes")) {
-                s = g_markup_printf_escaped("%s%s", i++ ? ", " : ". Root cause: ",
-                                            json_str(root, "label", ""));
-                g_string_append(m, s);
-                g_free(s);
-            }
-        }
-    }
-
-    g_string_append(m, "\n\n<b>All concepts</b>");
-    json_each(cc, json_get(j, "concepts")) {
-        s = g_markup_printf_escaped("\n\342\200\242 %s: %d%% \302\267 %s", json_str(cc, "label", ""),
-                                    pct(json_num(cc, "mastery", 0)),
-                                    status_word(json_str(cc, "status", "")));
-        g_string_append(m, s);
-        g_free(s);
-    }
-
-    Json *hist = json_get(j, "history");
-    if (json_len(hist)) {
-        g_string_append(m, "\n\n<b>Recent checks</b>");
-        json_each(h, hist) {
-            s = g_markup_printf_escaped("\n\342\200\242 %s: %d/%d", json_str(h, "section_title", ""),
-                                        json_int(h, "score", 0), json_int(h, "total", 3));
-            g_string_append(m, s);
-            g_free(s);
-        }
-    }
-
     GtkWidget *area = pager_new(UI_FONT_UI, UI_SMALL_PX + 4);
     Pager *pg = pager_of(area);
     pager_on_change(pg, progress_page_changed, p);
-    pager_set_text(pg, m->str, TRUE);
-    g_string_free(m, TRUE);
+    Json *doc = json_get(j, "doc"); /* coach note, gaps, concepts: composed by the server */
+    if (doc)
+        pager_set_doc(pg, doc);
+    else
+        pager_set_text(pg, APP_OLD_SERVER);
     app_set_pager(p->screen, pg);
     gtk_box_pack_start(GTK_BOX(p->body), area, TRUE, TRUE, 0);
     gtk_widget_show_all(p->stats);

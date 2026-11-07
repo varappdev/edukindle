@@ -17,13 +17,13 @@ personal knowledge map. No notifications and no tabs.
 
 ## Quick start
 
-### 1. Server (your laptop, same Wi-Fi as the Kindle)
+### 1. Server (your laptop, same Wi-Fi or hotspot as the Kindle)
 
 ```sh
 cd server
 uv sync
 export OPENAI_API_KEY=sk-...      # or OPENROUTER_API_KEY=sk-or-...; with neither, heuristic "offline" agents are used
-uv run python -m edukindle         # prints the dashboard URL and the line for edukindle.conf
+uv run python -m edukindle         # prints the address to use on the Kindle
 ```
 
 Open the printed dashboard URL to upload PDFs, Markdown or text, and to watch
@@ -52,9 +52,28 @@ cmake --install build/kindlehf --prefix dist --strip
 cp -r dist/extensions/edukindle /run/media/$USER/Kindle/extensions/
 ```
 
-On first launch `run.sh` creates `extensions/edukindle/edukindle.conf` from the
-example. Set `server=<laptop-ip>:8080` in it. Launch from **KUAL → EduKindle**.
-Logs go to `/tmp/edukindle.log`.
+Launch from **KUAL → EduKindle**. The app opens on a connect screen. It tries
+the last server that worked. If that fails, it searches the network, and you
+can type the address the server printed on a large keypad. The working address
+is saved to `extensions/edukindle/edukindle.conf`. Home's **Server** button
+brings the screen back. Logs go to `/tmp/edukindle.log`.
+
+### Connecting: networks and firewalls
+
+The Kindle talks to your laptop directly, so both must be on a network that lets
+devices reach each other:
+
+- **eduroam and most campus or office Wi-Fi block this** ("client isolation").
+  No setting on either device can fix that, so use a **phone hotspot** instead:
+  join it on both the laptop and the Kindle, start the server, then tap
+  **Find automatically** on the Kindle, or type the address the server printed.
+- **The laptop's firewall must allow port 8080.** If ufw is on, the server
+  prints the command at startup, for example
+  `sudo ufw allow from 192.168.43.0/24 to any port 8080 proto tcp`. Run it
+  once per network you use.
+- The connect screen explains failures: *refused* means the server isn't
+  running on that port, *no reply* means a firewall or an isolating network,
+  and *unreachable* means the Kindle is on a different network.
 
 ### 3. Desktop build (development)
 
@@ -96,6 +115,22 @@ note. The graph is drawn natively on the Kindle with Cairo and as SVG on the
 web dashboard. Solid nodes are mastered, heavy outlines are learning, dashed are
 weak and dotted are not yet tested.
 
+**Formatting.** Text from the AI and from uploaded Markdown is a small
+Markdown subset with LaTeX maths: paragraphs, `-`/`1.` lists, `**bold**`,
+`*italic*`, `` `code` ``, fenced code blocks, `> notes`, `$inline$` and
+`$$display$$` maths. The server (`richtext.py`) turns it into blocks for the
+Kindle:
+- inline maths becomes Pango markup: Unicode symbols, real super/subscripts and
+  italic variables, all in glyphs the Kindle's Bookerly font has;
+- display maths is rendered by matplotlib (`mathrender.py`) to a PNG at the
+  Kindle's text size, and equations too wide for the page break at `=`;
+- code keeps its whitespace in the Kindle's monospace font.
+
+The Kindle paginates the blocks like a book. Lists get hanging indents, and
+headings and formula lead-ins stay with what follows them. Results and progress
+pages are composed on the server too (`views.py`), so their wording can change
+without redeploying the app.
+
 **Latency.** OpenAI calls stay off the interactive path where possible.
 Opening a section prefetches its quiz. Serving a quiz prefetches the next one.
 Grading needs no model call. Explanations are cached. Coach notes refresh in
@@ -114,14 +149,20 @@ profile. Run it on a trusted network.
 | POST | `/api/documents` | `{title, text}` (Markdown headings become sections) |
 | POST | `/api/documents/upload` | Multipart PDF / `.md` / `.txt` |
 | DELETE | `/api/documents/{doc}` | |
-| GET | `/api/sections/{section}` | Section text (also prefetches its quiz) |
-| POST | `/api/explain` | `{section_id, mode: summary\|simple\|paragraph\|concept, paragraph?, concept_id?}` |
-| POST | `/api/quiz` | `{section_id}` → 3 questions (answers withheld) |
-| POST | `/api/quiz/{id}/answers` | `{answers: {q1: 2, …}}` → feedback, mastery change, gaps, next step |
-| GET | `/api/progress/{doc}` | Mastery, gaps with root causes, coach note, history |
+| GET | `/api/health` | `{ok, llm, provider, model}`; the Kindle uses it to find and check servers |
+| GET | `/api/sections/{section}` | Section Markdown `text` plus rendered `doc` (also prefetches its quiz) |
+| POST | `/api/explain` | `{section_id, mode: summary\|simple\|paragraph\|concept, paragraph?, concept_id?}` → `title`, Markdown `body`, `doc` |
+| POST | `/api/quiz` | `{section_id}` → 3 questions with `prompt_markup`/`options_markup` (answers withheld) |
+| POST | `/api/quiz/{id}/answers` | `{answers: {q1: 2, …}}` → feedback, mastery change, gaps, next step, results `doc` |
+| GET | `/api/progress/{doc}` | Mastery, gaps with root causes, coach note, history, progress `doc` |
 | GET | `/api/graph/{doc}` | Nodes with layout (`x`,`y` in 0..1) and edges |
 | GET | `/api/graph/{doc}/svg` | Same graph as SVG |
 | POST | `/api/reset` | Clear learner progress |
+
+A `doc` is `{"px": n, "blocks": [...]}`. Each block has a type `t` (`p`, `h1`–`h3`,
+`li`, `note`, `code`, `math`, `hr`), Pango markup `m`, and the source
+`para` index used by *Explain ¶*. The Kindle sends `X-EK-Px` (its text size)
+and `X-EK-Width` (page width) so maths images match its screen.
 
 ## Layout
 
@@ -129,9 +170,12 @@ profile. Run it on a trusted network.
 |---|---|
 | `src/main.c` | Window, screen stack, toasts, hardware keys, config |
 | `src/ui.c` | Flat B/W widget kit: buttons, frames, paged lists, the Pager |
-| `src/net.c`, `src/json.c` | Threaded HTTP/1.1 client on GIO, small JSON parser |
-| `src/screen_*.c` | Library/contents, reader/explain, quiz/results, progress/map |
+| `src/net.c`, `src/json.c` | Threaded HTTP/1.1 client on GIO, server discovery, small JSON parser |
+| `src/screen_*.c` | Connect, library/contents, reader/explain, quiz/results, progress/map |
 | `server/edukindle/agents/` | Socratic Educator, Curriculum Architect, offline fallbacks |
+| `server/edukindle/richtext.py` | Markdown + LaTeX → Kindle blocks and Pango markup |
+| `server/edukindle/mathrender.py` | Display maths → PNG (matplotlib mathtext) |
+| `server/edukindle/views.py` | Server-composed results and progress pages |
 | `server/edukindle/knowledge.py` | Concept graph, BKT, layered layout, SVG |
 | `server/edukindle/service.py` | Orchestration, prefetching, persistence |
 | `cmake/kindlehf.cmake` | Cross toolchain file |
