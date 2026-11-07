@@ -1,0 +1,238 @@
+"""Turn PDFs, Markdown and plain text into a document of readable sections.
+
+Section text is normalised to paragraphs separated by exactly one blank line,
+with whitespace inside a paragraph collapsed. The Kindle client relies on that
+to map a tapped paragraph back to an index the server understands.
+"""
+
+from __future__ import annotations
+
+import io
+import re
+import unicodedata
+from typing import Any, Iterable
+
+from .store import now
+
+TARGET_WORDS = 550   # aim for sections a student can read in ~3 minutes
+MAX_WORDS = 900
+MIN_WORDS = 120
+
+_HEADING_RE = re.compile(
+    r"^(?:(?:chapter|part|unit|lesson|section)\s+[\dIVXLC]+[.:]?\s*.*"
+    r"|\d+(?:\.\d+){0,2}\.?\s+[A-Z][^.!?]{2,70})$",
+    re.IGNORECASE,
+)
+
+
+def slugify(text: str, max_len: int = 40) -> str:
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug[:max_len].strip("-") or "doc"
+
+
+def normalise_paragraphs(paragraphs: Iterable[str]) -> list[str]:
+    out = []
+    for p in paragraphs:
+        p = re.sub(r"\s+", " ", p).strip()
+        if p:
+            out.append(p)
+    return out
+
+
+def _words(paragraphs: list[str]) -> int:
+    return sum(len(p.split()) for p in paragraphs)
+
+
+def _chunk(title: str, paragraphs: list[str]) -> list[tuple[str, list[str]]]:
+    """Split an over-long section at paragraph boundaries."""
+    if _words(paragraphs) <= MAX_WORDS:
+        return [(title, paragraphs)]
+    parts: list[list[str]] = [[]]
+    for p in paragraphs:
+        if parts[-1] and _words(parts[-1]) + len(p.split()) > TARGET_WORDS:
+            parts.append([])
+        parts[-1].append(p)
+    if len(parts) > 1 and _words(parts[-1]) < MIN_WORDS:
+        parts[-2].extend(parts.pop())
+    if len(parts) == 1:
+        return [(title, parts[0])]
+    return [(f"{title} ({i}/{len(parts)})", ps) for i, ps in enumerate(parts, 1)]
+
+
+def build_document(
+    title: str,
+    raw_sections: list[tuple[str, str, list[str]]],
+    source: str,
+    existing_ids: Iterable[str] = (),
+) -> dict[str, Any]:
+    """raw_sections: (chapter, section title, paragraphs)."""
+    base = slugify(title)
+    doc_id, n = base, 2
+    taken = set(existing_ids)
+    while doc_id in taken:
+        doc_id, n = f"{base}-{n}", n + 1
+
+    sections = []
+    for chapter, stitle, paras in raw_sections:
+        paras = normalise_paragraphs(paras)
+        if not paras:
+            continue
+        for t, ps in _chunk(stitle, paras):
+            idx = len(sections)
+            sections.append({
+                "id": f"{doc_id}.{idx + 1}",
+                "index": idx,
+                "chapter": chapter,
+                "title": t,
+                "text": "\n\n".join(ps),
+                "concepts": [],
+            })
+    if not sections:
+        raise ValueError("document has no readable text")
+    return {
+        "id": doc_id,
+        "title": title.strip() or "Untitled",
+        "source": source,
+        "created": now(),
+        "sections": sections,
+        "concepts": {},
+        "concepts_ready": False,
+    }
+
+
+# -- plain text / markdown -------------------------------------------------
+
+
+def split_text(text: str, fallback_title: str) -> list[tuple[str, str, list[str]]]:
+    """Markdown headings (#, ##) or numbered headings become sections."""
+    text = text.replace("\r\n", "\n")
+    sections: list[tuple[str, str, list[str]]] = []
+    chapter, title, paras, buf = "", fallback_title, [], []
+
+    def flush_para():
+        if buf:
+            paras.append(" ".join(buf))
+            buf.clear()
+
+    def flush_section():
+        flush_para()
+        if paras:
+            sections.append((chapter, title, list(paras)))
+            paras.clear()
+
+    for line in text.split("\n"):
+        s = line.strip()
+        md = re.match(r"^(#{1,3})\s+(.*)$", s)
+        if md:
+            flush_section()
+            level, heading = len(md.group(1)), md.group(2).strip()
+            if level == 1 and not sections and not chapter and fallback_title == title:
+                # A leading H1 is the document title, not a section.
+                title = heading
+                chapter = ""
+                continue
+            if level <= 1:
+                chapter, title = heading, heading
+            else:
+                title = heading
+            continue
+        if not s:
+            flush_para()
+        elif re.match(r"^[-*]\s+", s):
+            flush_para()
+            buf.append("• " + re.sub(r"^[-*]\s+", "", s))
+            flush_para()
+        else:
+            buf.append(s)
+    flush_section()
+    return sections
+
+
+# -- PDF ---------------------------------------------------------------------
+
+
+def _pdf_paragraphs(page_text: str) -> list[tuple[bool, str]]:
+    """Rebuild paragraphs from PDF lines. Yields (is_heading, text)."""
+    lines = [l.rstrip() for l in page_text.split("\n")]
+    widths = sorted(len(l) for l in lines if l.strip())
+    full = widths[int(len(widths) * 0.8)] if widths else 80
+
+    out: list[tuple[bool, str]] = []
+    buf: list[str] = []
+
+    def flush():
+        if buf:
+            out.append((False, " ".join(buf)))
+            buf.clear()
+
+    for line in lines:
+        s = line.strip()
+        if not s:
+            flush()
+            continue
+        if re.fullmatch(r"\d{1,4}", s):  # page number
+            continue
+        if len(s) < 80 and _HEADING_RE.match(s) and not s.endswith((".", ",")):
+            flush()
+            out.append((True, s))
+            continue
+        if buf and buf[-1].endswith("-") and s[:1].islower():
+            buf[-1] = buf[-1][:-1] + s  # de-hyphenate
+        else:
+            buf.append(s)
+        if s.endswith((".", "?", "!", ":")) and len(s) < 0.75 * full:
+            flush()
+    flush()
+    return out
+
+
+def split_pdf(data: bytes, fallback_title: str) -> tuple[str, list[tuple[str, str, list[str]]]]:
+    from pypdf import PdfReader
+
+    reader = PdfReader(io.BytesIO(data))
+    title = fallback_title
+    meta_title = (reader.metadata.title if reader.metadata else None) or ""
+    meta_title = meta_title.strip()
+    # Many tools stamp the source filename ("notes.docx") as the title; skip those.
+    if meta_title and len(meta_title) < 120 and not re.search(r"\.[A-Za-z]{2,4}$", meta_title):
+        title = meta_title
+
+    sections: list[tuple[str, str, list[str]]] = []
+    chapter, stitle, paras = "", title, []
+    for page in reader.pages:
+        for is_heading, text in _pdf_paragraphs(page.extract_text() or ""):
+            if is_heading:
+                if paras:
+                    sections.append((chapter, stitle, paras))
+                    paras = []
+                if re.match(r"^(chapter|part|unit)\b", text, re.I):
+                    chapter = text
+                stitle = text
+            else:
+                paras.append(text)
+    if paras:
+        sections.append((chapter, stitle, paras))
+
+    # Merge sections too small to quiz on into their predecessor.
+    merged: list[tuple[str, str, list[str]]] = []
+    for sec in sections:
+        if merged and _words(sec[2]) < MIN_WORDS // 2:
+            merged[-1][2].extend(sec[2])
+        else:
+            merged.append(sec)
+    return title, merged
+
+
+def ingest(filename: str, data: bytes, existing_ids: Iterable[str] = ()) -> dict[str, Any]:
+    stem = re.sub(r"\.[^.]+$", "", filename).replace("_", " ").strip() or "Untitled"
+    if filename.lower().endswith(".pdf") or data[:5] == b"%PDF-":
+        title, sections = split_pdf(data, stem)
+        return build_document(title, sections, "pdf", existing_ids)
+    text = data.decode("utf-8", errors="replace")
+    sections = split_text(text, stem)
+    title = stem
+    m = re.match(r"\s*#\s+(.+)", text)
+    if m:
+        title = m.group(1).strip()
+    return build_document(title, sections, "text", existing_ids)

@@ -22,11 +22,34 @@ endforeach()
 set_target_properties(PkgConfig::GTK2 PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES "${_gtk2_existing_incs}")
 
+# GLib < 2.32 needs libgthread for g_thread_init(); harmless on newer ones.
+pkg_check_modules(GTHREAD IMPORTED_TARGET gthread-2.0)
+
+add_library(ekcore STATIC src/json.c src/net.c)
+target_compile_options(ekcore PRIVATE -Wall -Wextra)
+target_link_libraries(ekcore PUBLIC PkgConfig::GTK2)
+
 add_executable(edukindle
   src/main.c
+  src/ui.c
+  src/screen_library.c
+  src/screen_reader.c
+  src/screen_quiz.c
+  src/screen_progress.c
 )
 target_compile_options(edukindle PRIVATE -Wall -Wextra)
-target_link_libraries(edukindle PRIVATE PkgConfig::GTK2)
+target_link_libraries(edukindle PRIVATE ekcore m)
+if(GTHREAD_FOUND)
+  target_link_libraries(edukindle PRIVATE PkgConfig::GTHREAD)
+endif()
+
+# Host-only unit tests for the JSON parser and HTTP client.
+if(NOT CMAKE_CROSSCOMPILING)
+  enable_testing()
+  add_executable(test_core tests/test_core.c)
+  target_link_libraries(test_core PRIVATE ekcore)
+  add_test(NAME core COMMAND test_core)
+endif()
 
 # ---- Packaging: KUAL extension layout -------------------------------------
 # `cmake --install build/<preset> --prefix dist` produces
@@ -35,4 +58,5 @@ target_link_libraries(edukindle PRIVATE PkgConfig::GTK2)
 set(EXT_DIR extensions/edukindle)
 install(TARGETS edukindle RUNTIME DESTINATION ${EXT_DIR}/bin)
 install(FILES kual/config.xml kual/menu.json DESTINATION ${EXT_DIR})
+install(FILES kual/edukindle.conf.example DESTINATION ${EXT_DIR})
 install(PROGRAMS kual/run.sh DESTINATION ${EXT_DIR})

@@ -1,0 +1,3 @@
+# Address of the computer running the EduKindle server (python -m edukindle).
+# The server prints this line when it starts.
+server=192.168.1.100:8080

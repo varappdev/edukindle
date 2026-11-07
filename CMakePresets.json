@@ -13,6 +13,15 @@
       }
     },
     {
+      "name": "host",
+      "displayName": "Host desktop build (GTK2) for development and tests",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/host",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
       "name": "kindlehf-debug",
       "inherits": "kindlehf",
       "displayName": "Kindle (hard-float) - Debug",
@@ -24,6 +33,7 @@
   ],
   "buildPresets": [
     { "name": "kindlehf", "configurePreset": "kindlehf" },
-    { "name": "kindlehf-debug", "configurePreset": "kindlehf-debug" }
+    { "name": "kindlehf-debug", "configurePreset": "kindlehf-debug" },
+    { "name": "host", "configurePreset": "host" }
   ]
 }
