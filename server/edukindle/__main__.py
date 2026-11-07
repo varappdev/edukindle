@@ -26,8 +26,11 @@ def main() -> None:
     cfg = config.load()
     print(f"EduKindle server: dashboard http://{_lan_ip()}:{cfg.port}/  "
           f"(Kindle edukindle.conf: server={_lan_ip()}:{cfg.port})")
-    if not cfg.llm_enabled:
-        print("No OPENAI_API_KEY set: running in offline mode with heuristic agents.")
+    if cfg.llm_enabled:
+        print(f"AI agents: {cfg.provider_name} · {cfg.model}")
+    else:
+        print("No OPENAI_API_KEY or OPENROUTER_API_KEY set: running in offline mode "
+              "with heuristic agents.")
     uvicorn.run(create_app(cfg), host=cfg.host, port=cfg.port, log_level="warning",
                 timeout_keep_alive=30)
 

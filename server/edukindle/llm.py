@@ -3,7 +3,8 @@
 Every agent call goes through `LLM.json()`, which requests a strict JSON-schema
 response. Models or OpenAI-compatible servers that reject `reasoning_effort` or
 `json_schema` are retried with progressively plainer requests, so the same code
-works against gpt-5-*, gpt-4.1-* and local OpenAI-compatible endpoints.
+works against OpenAI (gpt-5-*, gpt-4.1-*), OpenRouter and local
+OpenAI-compatible endpoints.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from typing import Any
 
@@ -30,8 +32,15 @@ class LLM:
         self.cfg = cfg
         self.enabled = cfg.llm_enabled
         self.model = cfg.model
+        self.provider = cfg.provider_name
+        self._openrouter = cfg.provider == "openrouter"
+        # OpenRouter uses these to attribute traffic to the app on its dashboard.
+        headers = ({"HTTP-Referer": "https://github.com/edukindle", "X-Title": "EduKindle"}
+                   if self._openrouter else None)
         self._client = (
-            openai.AsyncOpenAI(api_key=cfg.api_key, timeout=cfg.llm_timeout, max_retries=1)
+            openai.AsyncOpenAI(api_key=cfg.api_key, base_url=cfg.base_url,
+                               default_headers=headers, timeout=cfg.llm_timeout,
+                               max_retries=1)
             if self.enabled
             else None
         )
@@ -52,7 +61,7 @@ class LLM:
         max_tokens: int = 4000,
     ) -> dict[str, Any]:
         if not self._client:
-            raise LLMError("LLM disabled (no OPENAI_API_KEY)")
+            raise LLMError("LLM disabled (no API key)")
 
         async with self._sem:
             for _ in range(3):
@@ -65,7 +74,11 @@ class LLM:
                     "max_completion_tokens": max_tokens,
                 }
                 if self._use_effort:
-                    kwargs["reasoning_effort"] = self.cfg.reasoning_effort
+                    if self._openrouter:
+                        # OpenRouter's unified form, translated per upstream model.
+                        kwargs["extra_body"] = {"reasoning": {"effort": self.cfg.reasoning_effort}}
+                    else:
+                        kwargs["reasoning_effort"] = self.cfg.reasoning_effort
                 if self._use_schema:
                     kwargs["response_format"] = {
                         "type": "json_schema",
@@ -95,14 +108,33 @@ class LLM:
                 except openai.APIError as e:
                     raise LLMError(str(e)) from e
 
+                if not resp.choices:
+                    raise LLMError(f"{name}: empty response from {self.provider}")
                 content = resp.choices[0].message.content or ""
                 log.info("%s: %.2fs, %s tokens", name, time.perf_counter() - t0,
                          getattr(resp.usage, "total_tokens", "?"))
-                try:
-                    return json.loads(content)
-                except json.JSONDecodeError as e:
-                    raise LLMError(f"{name}: model returned invalid JSON") from e
+                return parse_json(content, name)
             raise LLMError(f"{name}: no request variant accepted by the model")
+
+
+def parse_json(content: str, name: str = "response") -> dict[str, Any]:
+    """Parse a JSON object, tolerating the Markdown fences or preamble that some
+    OpenRouter upstreams add when they ignore response_format."""
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        data = None
+    if isinstance(data, dict):
+        return data
+    fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", content, re.S)
+    candidate = fenced.group(1) if fenced else content[content.find("{"):content.rfind("}") + 1]
+    try:
+        data = json.loads(candidate)
+    except json.JSONDecodeError as e:
+        raise LLMError(f"{name}: model returned invalid JSON") from e
+    if not isinstance(data, dict):
+        raise LLMError(f"{name}: model returned JSON that isn't an object")
+    return data
 
 
 def obj(props: dict[str, Any]) -> dict[str, Any]:

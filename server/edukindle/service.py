@@ -146,7 +146,8 @@ class EduKindle:
                         "section_id": sid, "title": s["title"]}
                 break
         return {
-            "llm": {"enabled": self.llm.enabled, "model": self.llm.model if self.llm.enabled
+            "llm": {"enabled": self.llm.enabled, "provider": self.llm.provider,
+                    "model": self.llm.model if self.llm.enabled
                     else "offline"},
             "documents": docs,
             "continue": cont,

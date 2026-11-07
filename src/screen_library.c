@@ -76,10 +76,10 @@ static void home_loaded(NetResponse *resp, gpointer data)
 
     Json *llm = json_get(resp->json, "llm");
     if (json_bool(llm, "enabled", FALSE))
-        ui_label_printf(h->status, "Connected to %s \302\267 AI tutor: %s", net_server(),
-                        json_str(llm, "model", "?"));
+        ui_label_printf(h->status, "Connected to %s \302\267 AI tutor: %s %s", net_server(),
+                        json_str(llm, "provider", ""), json_str(llm, "model", "?"));
     else
-        ui_label_printf(h->status, "Connected to %s \302\267 offline tutor (no OpenAI key)",
+        ui_label_printf(h->status, "Connected to %s \302\267 offline tutor (no API key)",
                         net_server());
 
     Json *cont = json_get(resp->json, "continue");

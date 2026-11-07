@@ -76,7 +76,8 @@ def create_app(cfg: config.Config | None = None) -> FastAPI:
 
     @app.get("/api/health")
     async def health():
-        return {"ok": True, "llm": svc.llm.enabled, "model": svc.llm.model}
+        return {"ok": True, "llm": svc.llm.enabled, "provider": svc.llm.provider,
+                "model": svc.llm.model}
 
     @app.get("/api/home")
     async def home():

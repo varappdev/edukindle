@@ -22,7 +22,7 @@ personal knowledge map. No notifications and no tabs.
 ```sh
 cd server
 uv sync
-export OPENAI_API_KEY=sk-...      # optional: without it, heuristic "offline" agents are used
+export OPENAI_API_KEY=sk-...      # or OPENROUTER_API_KEY=sk-or-...; with neither, heuristic "offline" agents are used
 uv run python -m edukindle         # prints the dashboard URL and the line for edukindle.conf
 ```
 
@@ -32,10 +32,12 @@ hand-written question bank is loaded on first run.
 
 | Env var | Default | |
 |---|---|---|
-| `OPENAI_API_KEY` | unset | Enables the OpenAI agents |
-| `EDUKINDLE_MODEL` | `gpt-5-mini` | Any chat-completions model |
-| `EDUKINDLE_REASONING` | `low` | `reasoning_effort`; set empty for non-reasoning models |
-| `OPENAI_BASE_URL` | OpenAI | Any OpenAI-compatible endpoint |
+| `OPENAI_API_KEY` | unset | Use OpenAI for the agents |
+| `OPENROUTER_API_KEY` | unset | Use OpenRouter instead (picked automatically when it's the only key) |
+| `EDUKINDLE_PROVIDER` | auto | `openai` or `openrouter`, to choose when both keys are set |
+| `EDUKINDLE_MODEL` | `gpt-5-mini` / `openai/gpt-5-mini` | Any chat-completions model; OpenRouter IDs look like `anthropic/claude-haiku-4.5` |
+| `EDUKINDLE_REASONING` | `low` | Reasoning effort; set empty for non-reasoning models |
+| `OPENAI_BASE_URL` | OpenAI | Any other OpenAI-compatible endpoint (provider `openai`) |
 | `EDUKINDLE_PORT` / `EDUKINDLE_HOST` | `8080` / `0.0.0.0` | |
 | `EDUKINDLE_DATA` | `./data` | Documents, learner state, cache (JSON files) |
 | `EDUKINDLE_OFFLINE` | unset | `1` forces the offline agents |

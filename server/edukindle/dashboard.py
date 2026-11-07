@@ -193,8 +193,8 @@ def page(svc, doc_id: str | None) -> str:
     tabs = "".join(
         f'<a href="/?doc={escape(d["id"])}" class="{"cur" if doc and d["id"] == doc["id"] else ""}">'
         f'{escape(d["title"])}</a>' for d in svc.store.documents.values())
-    status = (f'<span class="pill on">OpenAI · {escape(llm.model)}</span>' if llm.enabled
-              else '<span class="pill">Offline agents (no OPENAI_API_KEY)</span>')
+    status = (f'<span class="pill on">{escape(llm.provider)} · {escape(llm.model)}</span>'
+              if llm.enabled else '<span class="pill">Offline agents (no API key)</span>')
     delete = (f'<button class="ghost" type="button" id="delete" data-doc="{escape(doc["id"])}">'
               'Delete this document</button>' if doc else "")
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">

@@ -19,6 +19,7 @@ SAMPLE = "calculus-i-derivatives"
 class FakeLLM:
     enabled = True
     model = "fake-model"
+    provider = "Fake"
 
     def __init__(self):
         self.calls: list[tuple[str, str]] = []

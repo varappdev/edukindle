@@ -22,8 +22,13 @@ endforeach()
 set_target_properties(PkgConfig::GTK2 PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES "${_gtk2_existing_incs}")
 
-# GLib < 2.32 needs libgthread for g_thread_init(); harmless on newer ones.
+# GLib < 2.32 needs libgthread for g_thread_init(). The Kindle firmware ships
+# GLib 2.29 (despite kindle-sdk's .pc files claiming 2.82) but no gthread-2.0.pc,
+# so fall back to finding the library directly.
 pkg_check_modules(GTHREAD IMPORTED_TARGET gthread-2.0)
+if(NOT GTHREAD_FOUND)
+  find_library(GTHREAD_LIBRARY gthread-2.0)
+endif()
 
 add_library(ekcore STATIC src/json.c src/net.c)
 target_compile_options(ekcore PRIVATE -Wall -Wextra)
@@ -41,6 +46,8 @@ target_compile_options(edukindle PRIVATE -Wall -Wextra)
 target_link_libraries(edukindle PRIVATE ekcore m)
 if(GTHREAD_FOUND)
   target_link_libraries(edukindle PRIVATE PkgConfig::GTHREAD)
+elseif(GTHREAD_LIBRARY)
+  target_link_libraries(edukindle PRIVATE ${GTHREAD_LIBRARY})
 endif()
 
 # Host-only unit tests for the JSON parser and HTTP client.
